@@ -1,0 +1,18 @@
+--- !ditz.rubyforge.org,2008-03-06/issue 
+title: Use tdfa regex library instead of regex-compat
+desc: Use tdfa regex library instead of regex-compat
+type: :task
+component: hums
+release: 
+reporter: Bardur Arantsson <bardur@scientician.net>
+status: :unstarted
+disposition: 
+creation_time: 2009-07-17 08:13:02.301117 Z
+references: []
+
+id: dda586224d6611f3e18c8de0655548b7dd1f2bb6
+log_events: 
+- - 2009-07-17 08:13:03.551039 Z
+  - Bardur Arantsson <bardur@scientician.net>
+  - created
+  - ""
