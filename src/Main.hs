@@ -43,7 +43,7 @@ import Data.ConfigFile
 import Paths_hums
 import Data.IORef
 import Network.Socket (Socket)
-import SendFile (sendFile')
+import Network.Socket.SendFile (sendFile', sendFileMode)
 
 defaultMediaServerConfiguration :: String -> MediaServerConfiguration
 defaultMediaServerConfiguration uuid_ = 
@@ -282,6 +282,10 @@ main = niceSocketsDo $ do
       let services = [ ContentDirectoryDevice, ConnectionManagerDevice ]
       let st = (c,mc,appInfo,services, defaultObjects)
 
+      -- Extra information for debugging:
+      putStrLn $ printf "SendFile mode: %s" sendFileMode
+
+      -- Build URL dispatch table
       let dispatchTable = 
               [ (mkRegex "^/description\\.xml$", rootDescriptionHandler st)
               , (mkRegex "^/static/(.*)$", staticHandler $ dataDirectory </> "www")
