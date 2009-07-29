@@ -16,7 +16,7 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 -}
 
-module Object ( Objects
+module Object ( Objects( systemUpdateId )
               , Object
               , ObjectType(..)
               , ObjectData(..)
@@ -66,6 +66,7 @@ objectTypeTable = [ (mkRegex "^video/.*", ItemVideoMovie)
 data Objects = Objects 
     { mapIdToObject :: Map ObjectId Object
     , mapParentToChildren :: Map ObjectId [ObjectId]
+    , systemUpdateId :: Int64
     }
                deriving (Show)
 
@@ -75,7 +76,7 @@ data ObjectData = MkObjectData
     , objectTitle :: String                     -- Title of the object.
     , objectFileName :: FilePath                -- Physical file.
     , objectFileSize :: Integer                 -- The size of the physical file.
-    , objectSystemUpdateId :: Int64             -- CD/§2.7.4.2
+    , objectLastModified :: Int64
     , objectMimeType :: String                  -- MIME type of the file.
     }
                   deriving (Show)
@@ -146,7 +147,7 @@ scanFile parentObjects objects fp = do
   fileId <- toHexString $ fileID st
   let oid = printf "%s,%s" deviceId fileId
   -- Compute the update ID.
-  let sysUpdateId = round' $ toRational $ modificationTime st
+  let lastModified = round' $ toRational $ modificationTime st
   -- Compute file size.
   let sz = (fromIntegral . System.Posix.fileSize) st
   -- Compute misc. attributes.
@@ -156,7 +157,7 @@ scanFile parentObjects objects fp = do
                    True -> "inode/directory"       -- Directories are special.
                    False -> guessMimeType fp
   -- Construct object data.
-  let objectData = MkObjectData kp _title fp sz sysUpdateId mimeType
+  let objectData = MkObjectData kp _title fp sz lastModified mimeType
   -- Add the directory entry to the current accumulator.
   return $ case dispatch objectTypeTable mimeType of
              Just (objectType,_) -> (oid, (objectType,objectData)) : objects
@@ -175,9 +176,12 @@ scanDirectory d = do
   -- Construct a map from parents to children.
   let mapParentToChildrenX = foldl p2c Map.empty o'
 
+  let getModificationTime = objectLastModified . getObjectData . snd
+
   return $ Objects 
              { mapIdToObject = Map.fromList o'
              , mapParentToChildren = mapParentToChildrenX
+             , systemUpdateId = maximum $ map getModificationTime o'
              }
   where 
     -- The root object is fixed.
@@ -187,7 +191,7 @@ scanDirectory d = do
                                      , objectTitle = "root"
                                      , objectFileName = "root"
                                      , objectFileSize = 0
-                                     , objectSystemUpdateId = 0
+                                     , objectLastModified = 0
                                      , objectMimeType = "inode/directory" })))
 
     p2c acc (oid, o) =

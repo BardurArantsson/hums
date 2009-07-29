@@ -1,0 +1,18 @@
+--- !ditz.rubyforge.org,2008-03-06/issue 
+title: Detect and handle removed files properly with respect to SystemUpdateId
+desc: The current code for SystemUpdateId doesn't properly handle removed files. This should be handled somehow.
+type: :bugfix
+component: hums
+release: 
+reporter: Bardur Arantsson <bardur@scientician.net>
+status: :unstarted
+disposition: 
+creation_time: 2009-07-29 20:25:21.696773 Z
+references: []
+
+id: 13be164c1f2c735c7b2582eeb783ff3573073b4a
+log_events: 
+- - 2009-07-29 20:25:23.456711 Z
+  - Bardur Arantsson <bardur@scientician.net>
+  - created
+  - ""

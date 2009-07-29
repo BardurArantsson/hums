@@ -246,10 +246,8 @@ fallbackHandler conn r gs = do
 periodicUpdate :: IORef a -> (IO a) -> IO ()
 periodicUpdate a doUpdate = do
   forever $ do
-    threadDelay 120000000   -- Every 120 seconds should be more than enough.
-    x <- doUpdate
-    writeIORef a x           -- Atomic replace
-
+    threadDelay 120000000      -- Every 120 seconds should be more than enough.
+    writeIORef a =<< doUpdate  -- Atomic replace
 
 scanOnce :: String -> IO Objects
 scanOnce directory = do 

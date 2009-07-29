@@ -174,7 +174,7 @@ generateBrowseResponseXml cfg st os (BrowseMetadata bps) = do
                [ selem "Result" [ txt $ didlXml ]
                , selem "NumberReturned" [ txt $ "1" ]  -- CD/§2.7.4.2
                , selem "TotalMatches" [ txt $ "1" ]    -- CD/§2.7.4.2
-               , selem "UpdateID" [ txt $ printf "%d" $ objectSystemUpdateId od ]
+               , selem "UpdateID" [ txt $ printf "%d" $ systemUpdateId os ]
                ]
              ]
   generateResponseXml body
@@ -182,7 +182,6 @@ generateBrowseResponseXml cfg st os (BrowseMetadata bps) = do
     didl = mkDidl [generateObjectElement cfg os (oid,o)]
     oid = objectId bps
     o = findExistingByObjectId oid os -- TODO: Might handle non-existing objects better.
-    od = getObjectData o
 
 
 generateBrowseResponseXml cfg st os (BrowseDirectChildren bps) = do
@@ -191,13 +190,11 @@ generateBrowseResponseXml cfg st os (BrowseDirectChildren bps) = do
                [ selem "Result" [ txt $ didlXml ]
                , selem "NumberReturned" [ txt $ numberReturned ]
                , selem "TotalMatches" [ txt $ totalMatches ]
-               , selem "UpdateID" [ txt $ printf "%d" $ objectSystemUpdateId od ]
+               , selem "UpdateID" [ txt $ printf "%d" $ systemUpdateId os ]
                ]
              ]
   generateResponseXml body
   where 
-    o = findExistingByObjectId oid os -- TODO: Might handle non-existing objects better.
-    od = getObjectData o
     oid = objectId bps
     startIndex = starting_index bps
     requestedCount = requested_count bps
@@ -211,11 +208,11 @@ generateBrowseResponseXml cfg st os (BrowseDirectChildren bps) = do
 
 generateActionResponseXml :: Configuration -> DeviceType -> Objects -> ContentDirectoryAction -> IO String
 
-generateActionResponseXml _ st _ ContentDirectoryGetSystemUpdateId = do
+generateActionResponseXml _ st os ContentDirectoryGetSystemUpdateId = do
   (generateXml [] $ generateSoapEnvelope body) >>= return
   where
     body = [ mkelem "u:GetSystemUpdateIDResponse" [ serviceNs "u" st ]
-             [ selem "Id" [ txt "1" ] ] ]
+             [ selem "Id" [ txt $ show $ systemUpdateId os ] ] ]
 
 generateActionResponseXml cfg st os (ContentDirectoryBrowse ba) = do
   generateBrowseResponseXml cfg st os ba >>= return
