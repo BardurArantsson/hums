@@ -28,10 +28,10 @@ type ObjectId = String
 
 data BrowseParameters = BrowseParameters
     { objectId :: ObjectId
-    , browse_filter :: String
-    , starting_index :: Int
-    , requested_count :: Int
-    , sort_criteria :: String
+    , browseFilter :: String
+    , startingIndex :: Int
+    , requestedCount :: Int
+    , sortCriteria :: String
     }
                       deriving (Show)
 

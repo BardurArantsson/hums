@@ -48,7 +48,7 @@ generateNotifyAlive ai c msc messageType =
            , printf "\r\n" ]
     where
       base_url = show $ mkURI ["description.xml"] $ httpServerBase c
-      messageTypeAsString UpnpServiceNotification = (printf "uuid:%s" $ uuid msc)
+      messageTypeAsString UpnpServiceNotification = printf "uuid:%s" $ uuid msc
       messageTypeAsString RootDeviceNotification = "upnp:rootdevice"
       messageTypeAsString ConnectionManagerNotification = "urn:schemas-upnp-org:service:ConnectionManager:1"
       messageTypeAsString ContentDirectoryNotification = "urn:schemas-upnp-org:service:ContentDirectory:1"
@@ -60,7 +60,7 @@ generateNotifyAlive ai c msc messageType =
 sendRawMessage :: Configuration -> String -> IO ()
 sendRawMessage c m = do
   -- Addresses
-  sa <- inet_addr $ local_net_ip c
+  sa <- inet_addr $ localNetIp c
   da <- inet_addr "239.255.255.250"
   -- Open socket and send
   sock <- socket AF_INET Datagram 0
@@ -70,8 +70,8 @@ sendRawMessage c m = do
   return ()
 
 sendNotifyAlive :: ApplicationInformation -> Configuration -> MediaServerConfiguration -> MessageType -> IO ()
-sendNotifyAlive ai c msc mt = 
-    sendRawMessage c $ generateNotifyAlive ai c msc mt
+sendNotifyAlive ai c msc = 
+    sendRawMessage c . generateNotifyAlive ai c msc
 
 sendNotifyAliveAll :: ApplicationInformation -> Configuration -> MediaServerConfiguration -> IO ()
 sendNotifyAliveAll ai c msc = do
@@ -86,7 +86,7 @@ sendNotifyAliveAll ai c msc = do
         threadDelay 100000
 
 sendNotifyForever :: ApplicationInformation -> Configuration -> MediaServerConfiguration -> IO ()
-sendNotifyForever ai c msc = do
+sendNotifyForever ai c msc =
   forever $ do
     putStrLn "Broadcasting alive notifications..."
     sendNotifyAliveAll ai c msc

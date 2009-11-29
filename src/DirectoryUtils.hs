@@ -40,21 +40,16 @@ walkTree s0 f d = do
   let names = sort $ filter (not . isSpecialDirectory) allNames
   -- Produce full names.
   let fullNames = map (combine d) names
-  -- Traverse subdirectories.
-  s' <- foldM traverse s0 fullNames
-  -- Return the accumulator.
-  return s'
-
+  -- Traverse subdirectories and return accumulator.
+  foldM traverse s0 fullNames
   where 
     traverse s n = do
                     isDirectory <- doesDirectoryExist n
                     if isDirectory then do
                          s' <- f s0 s n
-                         s'' <- walkTree s' f n
-                         return s''
-                      else do
-                         s' <- f s0 s n
-                         return s'
+                         walkTree s' f n
+                      else
+                         f s0 s n
 
     isSpecialDirectory ".." = True
     isSpecialDirectory "." = True

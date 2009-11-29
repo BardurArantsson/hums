@@ -77,7 +77,7 @@ hCopyBytes src dst ofs len = do
 
 -- Copy a set of ranges between two handles.
 hCopyRanges :: Handle -> Socket -> [(Integer,Integer)] -> IO ()
-hCopyRanges hnd conn ranges = do
+hCopyRanges hnd conn ranges =
   mapM_ copyRange ranges
   where
     copyRange (lo, hi) = hCopyBytes hnd conn lo $ fromInteger $ hi - lo + 1
@@ -97,7 +97,7 @@ hCopyRanges hnd conn ranges = do
 
 
 hCanonicalizeRanges :: Handle -> [(Maybe Integer, Maybe Integer)] -> IO [(Integer,Integer)]
-hCanonicalizeRanges hnd ranges = do
+hCanonicalizeRanges hnd ranges =
   mapM f ranges
   where 
     f (lo,hi) = do
@@ -122,13 +122,10 @@ serveStaticFile conn hs mimeType fp = do
             Nothing    -> []       -- Whole file
 
   -- Serve the ranges.
-  withFile fp ReadMode $ \h -> 
-      do
-        rs <- hCanonicalizeRanges h ranges
-        serveFile h rs
-
+  withFile fp ReadMode $ \h ->
+      hCanonicalizeRanges h ranges >>= serveFile h
   where 
-    ohs = [ Header HdrContentType $ mimeType ]
+    ohs = [ Header HdrContentType mimeType ]
     serveFile h [] = do
         -- No range given (or all ranges were invalid), so we handle regularly.
         len <- hFileSize h
@@ -158,8 +155,8 @@ staticHandler :: String -> Socket -> Request String -> [String] -> IO ()
 staticHandler root conn req gs = do
     putStrLn $ "Got request for static content: " ++ show gs
     case gs of
-      [p] -> if (isJust $ matchRegex dotDotSlash p) ||     -- Reject relative URLs.
-                (isJust $ matchRegex slashDotDot p) then
+      [p] -> if isJust (matchRegex dotDotSlash p) ||     -- Reject relative URLs.
+                isJust (matchRegex slashDotDot p) then
                  sendErrorResponse conn InternalServerError []
                else
                    serveStaticFile conn (getHeaders req) mimeType fp
@@ -203,7 +200,7 @@ serviceControlHandler (c,mc,ai,s,objects_) conn r gs = do
   objects <- readIORef objects_      -- Current snapshot of object tree.
   case gs of
     [sn] -> do
-            putStrLn $ printf "Got request for CONTROL for service '%s'" $ sn
+            putStrLn $ printf "Got request for CONTROL for service '%s'" sn
             case stringToDeviceType sn of
               Just dt -> do
                 -- Parse the SOAP request
@@ -222,13 +219,13 @@ serviceControlHandler (c,mc,ai,s,objects_) conn r gs = do
               Nothing -> do
                   putStrLn $ printf "Asked about unknown service '%s'" sn
                   sendErrorResponse conn NotImplemented []
-    _ -> do
+    _ ->
       -- Mapped to our URL space, but not parseable? 
       sendErrorResponse conn NotFound []
   where
     handleCDA st a objects =
-        generateActionResponseXml c st objects a >>= return
-    handleCMA _ = do 
+        generateActionResponseXml c st objects a
+    handleCMA _ =
       -- TODO: This should really be implemented as it is required by
       -- the specification. However, the PS3 doesn't seem to use it at
       -- all so I don't have any way to test an implementation anyway.
@@ -238,13 +235,13 @@ serviceControlHandler (c,mc,ai,s,objects_) conn r gs = do
 
 fallbackHandler :: Socket -> Request String -> [String] -> IO ()
 fallbackHandler conn r gs = do
-    putStrLn $ "Fallback handler got request:"
-    putStrLn $ show r
+    putStrLn "Fallback handler got request:"
+    print r
     sendErrorResponse conn InternalServerError []
 
 
 periodicUpdate :: IORef a -> (IO a) -> IO ()
-periodicUpdate a doUpdate = do
+periodicUpdate a doUpdate =
   forever $ do
     threadDelay 120000000      -- Every 120 seconds should be more than enough.
     writeIORef a =<< doUpdate  -- Atomic replace
@@ -296,7 +293,7 @@ main = niceSocketsDo $ do
 
       -- Start serving.
       putStrLn "Establishing HTTP server..."
-      forkIO $ runHttpServer dispatchTable $ http_server_port c
+      forkIO $ runHttpServer dispatchTable $ httpServerPort c
       putStrLn "Done."
       
       -- Start broadcasting alive messages.
@@ -308,6 +305,6 @@ main = niceSocketsDo $ do
       forkIO $ periodicUpdate defaultObjects scanOnce'
 
       -- Wait for all threads to terminate.
-      interact (\p -> p)
+      interact id
 
       return ()

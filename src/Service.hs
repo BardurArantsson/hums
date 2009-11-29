@@ -40,7 +40,7 @@ defaultEncodingAttributes = [ (a_output_encoding, utf8) ]
 
 myQuote :: String -> String
 myQuote =        -- TODO: There *must* be a better way to achieve our quoting needs.
-    concat . map f
+    concatMap f
     where
       f '<' = "&lt;"
       f '>' = "&gt;"
@@ -61,7 +61,7 @@ sanitizeXmlChars =
 
 optSelem :: ArrowXml a => String -> Maybe String -> a n XmlTree
 optSelem n Nothing = cmt $ printf " %s omitted " n
-optSelem n (Just x) = selem n [txt $ x]
+optSelem n (Just x) = selem n [txt x]
 
 data DeviceType = MediaServer
                 | ContentDirectoryDevice
@@ -85,7 +85,7 @@ serviceNs prefix st =
       av = printf "urn:schemas-upnp-org:service:%s:1" $ deviceTypeToString st
 
 serviceNs' :: DeviceType -> String
-serviceNs' st = printf "urn:schemas-upnp-org:service:%s:1" $ deviceTypeToString st
+serviceNs' = printf "urn:schemas-upnp-org:service:%s:1" . deviceTypeToString
 
 -- Generate the icon list.
 generateIconList :: ArrowXml a => Bool -> a XmlTree XmlTree
@@ -96,7 +96,7 @@ generateIconList True =
                 [ selem "mimetype" [ txt $ guessMimeType imageUrl ]
                 , selem "width"    [ txt "240" ] 
                 , selem "height"   [ txt "240" ]
-                , selem "url"      [ txt $ imageUrl ]
+                , selem "url"      [ txt imageUrl ]
                 ]
               ]
     where
@@ -107,18 +107,18 @@ generateServiceList services =
     selem "serviceList" $ map generateService services
     where
       generateService service =
-          (selem "service" 
-           [ selem "serviceType" [txt $ serviceNs' service]
-           , selem "serviceId" [txt $ printf "urn:upnp-org:serviceId:%s" dt]
-           , selem "SCPDURL" [txt $ printf "/static/services/%s/description.xml" dt]
-           , selem "controlURL" [txt $ printf "/dynamic/services/%s/control/" dt]
-	   , selem "eventSubURL" [txt $ printf "/dynamic/services/%s/event/" dt]
-           ])
+          selem "service" 
+                    [ selem "serviceType" [txt $ serviceNs' service]
+                    , selem "serviceId" [txt $ printf "urn:upnp-org:serviceId:%s" dt]
+                    , selem "SCPDURL" [txt $ printf "/static/services/%s/description.xml" dt]
+                    , selem "controlURL" [txt $ printf "/dynamic/services/%s/control/" dt]
+	            , selem "eventSubURL" [txt $ printf "/dynamic/services/%s/event/" dt]
+                    ]
           where dt = deviceTypeToString service
 
 generateDescription :: ArrowXml a => Configuration -> MediaServerConfiguration -> [DeviceType] -> a XmlTree XmlTree
 generateDescription c mc services = 
-    (root []
+    root []
      [ mkelem "root" [sattr "xmlns" "urn:schemas-upnp-org:device-1-0"]
        [ selem "specVersion"
          [ selem "major" [ txt "1" ]
@@ -135,7 +135,7 @@ generateDescription c mc services =
          , selem "modelNumber" [ txt $ modelNumber mc ]
          , selem "modelURL" [ txt $ modelUrl mc ]
          , optSelem "serialNumber" $ serialNumber mc
-         , selem "deviceType" [ txt $ printf "urn:schemas-upnp-org:device:%s:1" $ deviceType ]
+         , selem "deviceType" [ txt $ printf "urn:schemas-upnp-org:device:%s:1" deviceType ]
          , optSelem "UPC" $ upc mc
 --         , optSelemNs "dlna:X_DNLADOC" [sattr "xmlns" "urn:schemas-dlna-org:device-1-0"] $ dlna
          , generateIconList $ enableDeviceIcon c
@@ -143,7 +143,7 @@ generateDescription c mc services =
          , selem "presentationURL" [ txt presentationUrl ]
          ]
        ]
-     ])
+     ]
     where
       deviceType = deviceTypeToString MediaServer
 --      dlna = if useDlna mc then (Just "DMS-1.00") else Nothing
@@ -152,28 +152,26 @@ generateDescription c mc services =
 -- Transform an XmlTree to a string.
 generateXml :: Attributes -> IOSLA (XIOState ()) XmlTree XmlTree -> IO String
 generateXml as a = do
-  xml <- runX $ (a >>> writeDocumentToString (addEntries as defaultEncodingAttributes))
+  xml <- runX (a >>> writeDocumentToString (addEntries as defaultEncodingAttributes))
   return $ concat xml
 
 generateDescriptionXml :: Configuration -> MediaServerConfiguration -> [DeviceType] -> IO String
-generateDescriptionXml c mc services = do
-  xml <- generateXml [] $ generateDescription c mc services
-  return xml
+generateDescriptionXml c mc =
+  generateXml [] . generateDescription c mc
 
 
 generateResponseXml :: [IOSLA (XIOState ()) XmlTree XmlTree] -> IO String
-generateResponseXml body = do
-  xml <- generateXml [(a_output_xml,v_0)] $ generateSoapEnvelope body
-  return xml
+generateResponseXml =
+  generateXml [(a_output_xml,v_0)] . generateSoapEnvelope
 
 generateBrowseResponseXml :: Configuration -> DeviceType -> Objects -> BrowseAction -> IO String
 
 generateBrowseResponseXml cfg st os (BrowseMetadata bps) = do
   didlXml <- fmap myQuote $ generateXml [] didl
   let body = [ mkelem "u:BrowseResponse" [ serviceNs "u" st ]
-               [ selem "Result" [ txt $ didlXml ]
-               , selem "NumberReturned" [ txt $ "1" ]  -- CD/§2.7.4.2
-               , selem "TotalMatches" [ txt $ "1" ]    -- CD/§2.7.4.2
+               [ selem "Result" [ txt didlXml ]
+               , selem "NumberReturned" [ txt "1" ]  -- CD/§2.7.4.2
+               , selem "TotalMatches" [ txt "1" ]    -- CD/§2.7.4.2
                , selem "UpdateID" [ txt $ printf "%d" $ systemUpdateId os ]
                ]
              ]
@@ -187,45 +185,45 @@ generateBrowseResponseXml cfg st os (BrowseMetadata bps) = do
 generateBrowseResponseXml cfg st os (BrowseDirectChildren bps) = do
   didlXml <- fmap myQuote $ generateXml [] didl
   let body = [ mkelem "u:BrowseResponse" [ serviceNs "u" st ]
-               [ selem "Result" [ txt $ didlXml ]
-               , selem "NumberReturned" [ txt $ numberReturned ]
-               , selem "TotalMatches" [ txt $ totalMatches ]
+               [ selem "Result" [ txt didlXml ]
+               , selem "NumberReturned" [ txt numberReturned ]
+               , selem "TotalMatches" [ txt totalMatches ]
                , selem "UpdateID" [ txt $ printf "%d" $ systemUpdateId os ]
                ]
              ]
   generateResponseXml body
   where 
     oid = objectId bps
-    startIndex = starting_index bps
-    requestedCount = requested_count bps
+    si = startingIndex bps
+    rc = requestedCount bps
     totalMatches = show $ getNumberOfChildren os oid     --  CD/§2.7.4.2
     numberReturned = show $ length chosenChildren
-    slicer = if requestedCount<=0 then id else slice startIndex requestedCount -- CD/§2.7.4.2
+    slicer = if rc<=0 then id else slice si rc -- CD/§2.7.4.2
     chosenChildren = slicer $ Object.getChildren os oid
-    didl = mkDidl $ map (generateObjectElement cfg os) $ chosenChildren
+    didl = mkDidl $ map (generateObjectElement cfg os) chosenChildren
 
 
 
 generateActionResponseXml :: Configuration -> DeviceType -> Objects -> ContentDirectoryAction -> IO String
 
-generateActionResponseXml _ st os ContentDirectoryGetSystemUpdateId = do
-  (generateXml [] $ generateSoapEnvelope body) >>= return
+generateActionResponseXml _ st os ContentDirectoryGetSystemUpdateId =
+  generateXml [] $ generateSoapEnvelope body
   where
     body = [ mkelem "u:GetSystemUpdateIDResponse" [ serviceNs "u" st ]
              [ selem "Id" [ txt $ show $ systemUpdateId os ] ] ]
 
-generateActionResponseXml cfg st os (ContentDirectoryBrowse ba) = do
-  generateBrowseResponseXml cfg st os ba >>= return
+generateActionResponseXml cfg st os (ContentDirectoryBrowse ba) =
+  generateBrowseResponseXml cfg st os ba
 
-generateActionResponseXml _ st _ ContentDirectoryGetSearchCapabilities = do
-  (generateXml [] $ generateSoapEnvelope body) >>= return
+generateActionResponseXml _ st _ ContentDirectoryGetSearchCapabilities =
+  generateXml [] $ generateSoapEnvelope body
   where 
     body = [ mkelem "u:GetSearchCapabilitiesResponse" [ serviceNs "u" st ]
              [ selem "SearchCaps" [ txt "" ] ]   -- No search capabilities (CD/§2.5.18)
            ]
 
 generateActionResponseXml _ st _ ContentDirectoryGetSortCapabilities =
-  (generateXml [] $ generateSoapEnvelope body) >>= return
+  generateXml [] $ generateSoapEnvelope body
   where 
     body = [ mkelem "u:GetSortCapabilitiesResponse" [ serviceNs "u" st ]
              [ selem "SortCaps" [ txt "" ] ]   -- No sorting capabilities (CD/§2.5.19)
@@ -233,10 +231,10 @@ generateActionResponseXml _ st _ ContentDirectoryGetSortCapabilities =
 
 generateSoapEnvelope :: ArrowXml a => [a XmlTree XmlTree] -> a XmlTree XmlTree
 generateSoapEnvelope b = 
-    (root []
-     [ mkelem "s:Envelope" [ soapNs, soapEncodingStyle ]
-       [ selem "s:Body" b ]
-     ])
+    root []
+      [ mkelem "s:Envelope" [ soapNs, soapEncodingStyle ]
+        [ selem "s:Body" b ]
+      ]
     where
       soapNs = sattr "xmlns:s" $ printf "%s/envelope/" urlPrefix
       soapEncodingStyle = sattr "s:encodingStyle" $ printf "%s/encoding/" urlPrefix
@@ -245,16 +243,15 @@ generateSoapEnvelope b =
 
 generateObjectElement :: ArrowXml a => Configuration -> Objects -> (ObjectId, Object) -> a XmlTree XmlTree
 generateObjectElement cfg objects (oid, o) = 
-    (mkelem en (as ++ eas)
+    mkelem en (as ++ eas)
      ([ selem "dc:title" [ txt $ sanitizeXmlChars $ objectTitle od ]
       , selem "upnp:class" [ txt $ getObjectClassName o ]
       ] ++ ee)
-    )
     where
       od = getObjectData o
       en = getObjectElementName o
       ee = generateExtraElements cfg (oid,o)
-      as = [ sattr "id" $ oid 
+      as = [ sattr "id" oid 
            , sattr "parentID" $ objectParentId od
            ]
       eas = generateExtraAttributes objects (oid,o)
@@ -305,13 +302,10 @@ generateProtocolInfo cfg transcode mimeType profileId =
     where 
       playSpeed = 1 :: Int           -- DLNA play speed: Normal
       conversionFlags =              -- DLNA conversion flags
-          case transcode of
-            False -> 0 :: Int
-            True  -> 1 :: Int
+          if transcode then 1 else 0 :: Int
       operationsParameter =          -- DLNA operations parameter
-          case transcode of
-            False -> 1 :: Int        -- Support byte ranges, but not time seek ranges.
-            True  -> 0 :: Int        -- Don't support bytes ranges, nor time seek ranges.
+          if transcode then 0 :: Int -- Don't support bytes ranges, nor time seek ranges.
+            else 1                   -- Support byte ranges, but not time seek ranges.
       flags =
                _DLNA_ORG_FLAG_STREAMING_TRANSFER_MODE .|.
                _DLNA_ORG_FLAG_BACKGROUND_TRANSFER_MODE .|.
@@ -326,9 +320,10 @@ generateProtocolInfo cfg transcode mimeType profileId =
                 , ("DLNA.ORG_FLAGS" , Just $ printf "%08x%024x" flags (0 :: Int32) ) ]
       protocolPrefix = "http-get:*:" ++ mimeType ++ ":"
       protocolSuffix = 
-          case useDlna cfg of
-            True -> join ";" $ mapMaybe (\(n,v) -> mapMaybe1 (printf "%s=%s" n) v) fields
-            False -> "*"
+          if useDlna cfg then
+              join ";" $ mapMaybe (\(n,v) -> mapMaybe1 (printf "%s=%s" n) v) fields
+          else 
+              "*"
       -- Protocol constants.
       _DLNA_ORG_FLAG_SENDER_PACED              = bit 31 :: Int32
       _DLNA_ORG_FLAG_TIME_BASED_SEEK           = bit 30 :: Int32
@@ -359,11 +354,11 @@ genItemAttributes = []
 -- Create the DIDL result object.
 mkDidl :: ArrowXml a => [a XmlTree XmlTree] -> a XmlTree XmlTree
 mkDidl es =
-    (selem "dummy"    -- Not using 'root' means we avoid the XML declaration
-     [ mkelem "DIDL-Lite" [ sattr "xmlns:dc" dcNs
-                          , sattr "xmlns:upnp" upnpNs
-                          , sattr "xmlns" ns ]
-       es ])
+    selem "dummy"    -- Not using 'root' means we avoid the XML declaration
+              [ mkelem "DIDL-Lite" [ sattr "xmlns:dc" dcNs
+                                   , sattr "xmlns:upnp" upnpNs
+                                   , sattr "xmlns" ns ]
+                es ]
     where
       dcNs = "http://purl.org/dc/elements/1.1/"
       upnpNs = "urn:schemas-upnp-org:metadata-1-0/upnp/"
@@ -372,4 +367,4 @@ mkDidl es =
 
 -- Slice out a portion of a list.
 slice :: Int -> Int -> [a] -> [a]
-slice i n xs = take n $ drop i $ xs
+slice i n = take n . drop i

@@ -26,9 +26,8 @@ import Control.Monad
 
 -- Convert a storable to an [Word8].
 toWord8Array :: Storable a => a -> IO [Word8]
-toWord8Array a = do
-  xs <- loop 0
-  return xs
+toWord8Array a =
+  loop 0
   where
     loop i =
           if i < sizeOf a then do
@@ -43,5 +42,5 @@ toWord8Array a = do
 toHexString :: Storable a => a -> IO String
 toHexString a = do
   bytes <- toWord8Array a
-  let s = (concat $ map (\x -> printf "%02x" x) $ bytes) :: String 
-  return $ s
+  let s = concatMap (printf "%02x") bytes :: String 
+  return s

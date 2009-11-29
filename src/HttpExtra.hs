@@ -22,7 +22,7 @@ module HttpExtra ( parseRangeHeader
 import Text.ParserCombinators.Parsec
 
 parseRange :: GenParser Char a (Maybe Integer, Maybe Integer)
-parseRange = do
+parseRange =
     choice [parseFullRange,
             parseEndRange, 
             parseSingleByteRange]
@@ -44,18 +44,17 @@ parseSingleByteRange :: GenParser Char a (Maybe Integer, Maybe Integer)
 parseSingleByteRange = do
   i1 <- parseInteger
   char '-'
-  return (Just $ i1, Just $ i1)
+  return (Just i1, Just i1)
 
 parseInteger :: GenParser Char a Integer
 parseInteger = do
   ds <- many1 digit
-  return $ ((read ds) :: Integer)
+  return (read ds :: Integer)
 
 parseRanges :: GenParser Char a [(Maybe Integer, Maybe Integer)]
 parseRanges = do
   string "bytes="
-  rs <- parseRange `sepBy` (char ',')
-  return rs
+  parseRange `sepBy` char ','
 
 parseRangeHeader :: String -> [(Maybe Integer, Maybe Integer)]
 parseRangeHeader s =

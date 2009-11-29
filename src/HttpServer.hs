@@ -52,7 +52,7 @@ type UrlHandler =
 
 runHttpServer' :: RequestHandler -> Word16 -> IO ()
 runHttpServer' r p = do
-  let p' = (fromIntegral p) :: PortNumber
+  let p' = fromIntegral p :: PortNumber
   let sa = SockAddrInet p' iNADDR_ANY
   s <- socket AF_INET Stream 0
   setSocketOption s ReuseAddr 1
@@ -74,9 +74,7 @@ handleHttpConnection r c = do
     result <- receiveHTTP c
     case result of
       Left _ -> error "Error reading request"
-      Right req -> do
-          -- Got the request, now let's invoke the request handler.
-          r c req
+      Right req -> r c req
 
 
 sendHeaders :: Socket -> ResponseCode -> String -> [Header] -> IO ()
@@ -98,15 +96,14 @@ sendBody conn body = do
 
 
 myRequestHandler :: [(Regex, UrlHandler)] -> Socket -> Request String -> IO ()
-myRequestHandler hs s r = do
+myRequestHandler hs s r =
   case dispatch hs (urlDecode $ uriPath $ rqURI r) of
     Nothing -> sendErrorResponse  s InternalServerError []
     Just (h,gs) -> h s r gs
 
 
 runHttpServer :: [(Regex, UrlHandler)] -> Word16 -> IO ()
-runHttpServer hs p = do
-  runHttpServer' (myRequestHandler hs) p
+runHttpServer = runHttpServer' . myRequestHandler
 
 {-
 
@@ -131,7 +128,7 @@ sendPartialContentHeaders conn hs (rLow,rHigh) entitySize =
 
 sendXmlResponse :: Socket -> [Header] -> String -> IO ()
 sendXmlResponse conn hs xml = do
-     sendOkHeaders conn ( (Header HdrContentType "text/xml") : hs ) $ length xml
+     sendOkHeaders conn ( Header HdrContentType "text/xml" : hs ) $ length xml
      sendBody conn xml
 
 
@@ -144,7 +141,7 @@ data HttpError = NotFound
            
 
 sendErrorResponse :: Socket -> HttpError -> [Header] -> IO ()
-sendErrorResponse conn e hs = do
+sendErrorResponse conn e hs =
   sendHeaders conn c r
                   ([ Header HdrContentLength "0"
                    , Header HdrConnection "close"

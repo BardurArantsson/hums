@@ -25,7 +25,7 @@ dispatch :: [(Regex, a)] -> String -> Maybe (a, [String])
 dispatch t s = 
     case findFirst f t of
       Nothing -> Nothing
-      Just (v, gs) -> Just $ (v, gs)
+      Just (v,gs) -> Just (v, gs)
     where
       f (r,v) = case matchRegex r s of
                   Just gs -> Just (v,gs)

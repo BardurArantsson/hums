@@ -118,12 +118,12 @@ getChildren os pid =
 
 -- Get the number of children of a given object.
 getNumberOfChildren :: Objects -> ObjectId -> Int
-getNumberOfChildren os pid =
-    length $ Object.getChildren os pid     -- TODO: Keep track of length instead?
+getNumberOfChildren os =
+    length . Object.getChildren os    -- TODO: Keep track of length instead?
 
 -- Find object by object ID.
 findByObjectId :: ObjectId -> Objects -> Maybe Object
-findByObjectId oid os = Map.lookup oid $ mapIdToObject os
+findByObjectId oid = Map.lookup oid . mapIdToObject
 
 -- Find object which is known to exist by object ID.
 findExistingByObjectId :: ObjectId -> Objects -> Object
@@ -142,7 +142,7 @@ scanFile parentObjects objects fp = do
   -- Compute object id for the directory entry.
   -- FIXME: Should handle 'file gone missing' -- simply don't prepend an 
   -- object in that case.
-  st <- getFileStatus $ fp 
+  st <- getFileStatus fp 
   deviceId <- toHexString $ deviceID st
   fileId <- toHexString $ fileID st
   let oid = printf "%s,%s" deviceId fileId
@@ -151,11 +151,11 @@ scanFile parentObjects objects fp = do
   -- Compute file size.
   let sz = (fromIntegral . System.Posix.fileSize) st
   -- Compute misc. attributes.
-  let _title = dropExtension $ takeFileName $ fp
+  let _title = dropExtension $ takeFileName fp
   -- Start by guessing mime type.
-  let mimeType = case isDirectory st of
-                   True -> "inode/directory"       -- Directories are special.
-                   False -> guessMimeType fp
+  let mimeType = if isDirectory st then
+                     "inode/directory"       -- Directories are special.
+                 else guessMimeType fp
   -- Construct object data.
   let objectData = MkObjectData kp _title fp sz lastModified mimeType
   -- Add the directory entry to the current accumulator.
@@ -178,7 +178,7 @@ scanDirectory d = do
 
   let getModificationTime = objectLastModified . getObjectData . snd
 
-  return $ Objects 
+  return Objects 
              { mapIdToObject = Map.fromList o'
              , mapParentToChildren = mapParentToChildrenX
              , systemUpdateId = maximum $ map getModificationTime o'
@@ -187,12 +187,12 @@ scanDirectory d = do
     -- The root object is fixed.
     rootObject = 
         (rootObjectId,    
-           (Container, (MkObjectData { objectParentId = rootObjectParentId
-                                     , objectTitle = "root"
-                                     , objectFileName = "root"
-                                     , objectFileSize = 0
-                                     , objectLastModified = 0
-                                     , objectMimeType = "inode/directory" })))
+           (Container, MkObjectData { objectParentId = rootObjectParentId
+                                    , objectTitle = "root"
+                                    , objectFileName = "root"
+                                    , objectFileSize = 0
+                                    , objectLastModified = 0
+                                    , objectMimeType = "inode/directory" }))
 
     p2c acc (oid, o) =
         Map.alter (\x -> case x of

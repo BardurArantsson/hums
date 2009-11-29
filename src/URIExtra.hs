@@ -39,7 +39,7 @@ addSlashes :: [String] -> [String]
 addSlashes [] = []
 addSlashes ("":xs) = addSlashes xs                 -- Remove empty components
 addSlashes [x] = [x]                              -- Last component
-addSlashes (x:y:xs) = (addSlash x : addSlashes (y:xs))  -- Other components
+addSlashes (x:y:xs) = addSlash x : addSlashes (y:xs)  -- Other components
 
 -- Add trailing slash to a string unless already present.
 addSlash :: String -> String

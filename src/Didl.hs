@@ -24,11 +24,11 @@ import Text.XML.HXT.Arrow
 -- Create a DIDL-Lite element with namespace declarations.
 mkDidl :: ArrowXml a => [a XmlTree XmlTree] -> a XmlTree XmlTree
 mkDidl es =
-    (selem "dummy"    -- Avoids the XML declaration when HXT generates the XML.
-     [ mkelem "DIDL-Lite" [ sattr "xmlns:dc" dcNs
-                          , sattr "xmlns:upnp" upnpNs
-                          , sattr "xmlns" ns ]
-       es ])
+    selem "dummy"    -- Avoids the XML declaration when HXT generates the XML.
+      [ mkelem "DIDL-Lite" [ sattr "xmlns:dc" dcNs
+                           , sattr "xmlns:upnp" upnpNs
+                           , sattr "xmlns" ns ]
+        es ]
     where
       dcNs = "http://purl.org/dc/elements/1.1/"
       upnpNs = "urn:schemas-upnp-org:metadata-1-0/upnp/"

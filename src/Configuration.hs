@@ -40,9 +40,9 @@ import Data.Maybe
 -}
 
 data Configuration = 
-    Configuration { local_net_ip :: String
+    Configuration { localNetIp :: String
                   , httpServerBase :: URI
-                  , http_server_port :: Word16
+                  , httpServerPort :: Word16
                   , enableDeviceIcon :: Bool
                   , useDlna :: Bool
                   , dlnaProfileName :: Maybe String -- Only used when useDlna is available.
@@ -86,7 +86,7 @@ data ApplicationInformation = ApplicationInformation
 getApplicationInformation :: IO ApplicationInformation 
 getApplicationInformation = do
   systemId <- getSystemID
-  return $ ApplicationInformation 
+  return ApplicationInformation 
              { operatingSystemName = systemName systemId 
              , operatingSystemVersion = release systemId
              , applicationName = "hums"
@@ -104,14 +104,14 @@ parseConfiguration cp0 cfname = do
            ip <- get cf networkSection "listen_ip"
            port <- get cf networkSection "listen_port"
            rootDirectory_ <- get cf defaultSection "root_directory"
-           return $ Configuration 
-                  { local_net_ip = ip
-                  , http_server_port = port
-                  , httpServerBase = fromJust $ parseURI $ "http://" ++ ip ++ ":" ++ (show port)
-                  , enableDeviceIcon = True
-                  , useDlna = True
-                  , dlnaProfileName = Nothing
-                  , rootDirectory = rootDirectory_ }
+           return Configuration 
+                      { localNetIp = ip
+                      , httpServerPort = port
+                      , httpServerBase = fromJust $ parseURI $ printf "http://%s:%d" ip port
+                      , enableDeviceIcon = True
+                      , useDlna = True
+                      , dlnaProfileName = Nothing
+                      , rootDirectory = rootDirectory_ }
   return $ forceEither cfg
   where
     defaultSection = "DEFAULT"
