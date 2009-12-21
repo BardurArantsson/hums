@@ -111,13 +111,13 @@ runHttpServer = runHttpServer' . myRequestHandler
 
 -}
 
-sendOkHeaders :: Socket -> [Header] -> Int -> IO ()
+sendOkHeaders :: Socket -> [Header] -> Integer -> IO ()
 sendOkHeaders conn hs contentLength =
     let h1 = Header HdrContentLength $ printf "%d" contentLength in
     let h2 = Header HdrConnection "close" in
     sendHeaders conn (2,0,0) "OK" (h1 : h2 : hs)
 
-sendPartialContentHeaders :: Socket -> [Header] -> (Integer,Integer) -> Int -> IO ()
+sendPartialContentHeaders :: Socket -> [Header] -> (Integer,Integer) -> Integer -> IO ()
 sendPartialContentHeaders conn hs (rLow,rHigh) entitySize =
     let h1 = Header HdrContentLength $ printf "%d" (rHigh-rLow+1) in
     let h2 = Header HdrContentRange $ printf "%d-%d/%d" rLow rHigh entitySize in
@@ -128,7 +128,7 @@ sendPartialContentHeaders conn hs (rLow,rHigh) entitySize =
 
 sendXmlResponse :: Socket -> [Header] -> String -> IO ()
 sendXmlResponse conn hs xml = do
-     sendOkHeaders conn ( Header HdrContentType "text/xml" : hs ) $ length xml
+     sendOkHeaders conn ( Header HdrContentType "text/xml" : hs ) $ toEnum $ length xml
      sendBody conn xml
 
 

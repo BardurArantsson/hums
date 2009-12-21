@@ -30,7 +30,7 @@ import Text.Regex
 import Data.List
 import Text.Printf
 import Action
-import System.IO (withFile, hFileSize, IOMode(..), Handle)
+import System.IO (withFile, hFileSize, IOMode(..))
 import qualified Data.UUID as U
 import qualified Data.UUID.V1 as U1
 import MimeType
@@ -70,17 +70,17 @@ rootDescriptionHandler (c,mc,ai,s,_) conn r gs = do
   sendXmlResponse conn (getExtraHeaders ai) xml
   putStrLn "Send root description."
 
-hCopyBytes :: Handle -> Socket -> Integer -> Integer -> IO ()
+hCopyBytes :: FilePath -> Socket -> Integer -> Integer -> IO ()
 hCopyBytes src dst ofs len = do
   putStrLn $ printf "Sending %d bytes..." len
   sendFile' dst src ofs len
 
 -- Copy a set of ranges between two handles.
-hCopyRanges :: Handle -> Socket -> [(Integer,Integer)] -> IO ()
-hCopyRanges hnd conn ranges =
+hCopyRanges :: FilePath -> Socket -> [(Integer,Integer)] -> IO ()
+hCopyRanges src conn ranges =
   mapM_ copyRange ranges
   where
-    copyRange (lo, hi) = hCopyBytes hnd conn lo $ fromInteger $ hi - lo + 1
+    copyRange (lo, hi) = hCopyBytes src conn lo $ fromInteger $ hi - lo + 1
 
 {-
 
@@ -96,20 +96,22 @@ hCopyRanges hnd conn ranges =
 -}
 
 
-hCanonicalizeRanges :: Handle -> [(Maybe Integer, Maybe Integer)] -> IO [(Integer,Integer)]
-hCanonicalizeRanges hnd ranges =
-  mapM f ranges
+hCanonicalizeRanges :: Integer -> [(Maybe Integer, Maybe Integer)] -> [(Integer,Integer)]
+hCanonicalizeRanges fsz ranges =
+  map f ranges
   where 
     f (lo,hi) = do
       let lo' = case lo of 
                   Just x -> x
                   Nothing -> 0
-      hi' <- case hi of 
-               Just x -> return x
-               Nothing -> do
-                       l <- hFileSize hnd
-                       return $ l - 1
-      return (lo', hi')
+      let hi' = case hi of
+                  Just x -> x
+                  Nothing -> fsz - 1
+      (lo', hi')
+
+fileSize :: FilePath -> IO Integer
+fileSize fp = 
+  withFile fp ReadMode $ \h -> hFileSize h
 
 serveStaticFile :: Socket -> [Header] -> String -> FilePath -> IO ()
 serveStaticFile conn hs mimeType fp = do
@@ -122,22 +124,22 @@ serveStaticFile conn hs mimeType fp = do
             Nothing    -> []       -- Whole file
 
   -- Serve the ranges.
-  withFile fp ReadMode $ \h ->
-      hCanonicalizeRanges h ranges >>= serveFile h
+  fsz <- fileSize fp
+  let ranges' = hCanonicalizeRanges fsz ranges
+  serveFile fsz ranges'
   where 
     ohs = [ Header HdrContentType mimeType ]
-    serveFile h [] = do
+    serveFile :: Integer -> [(Integer,Integer)] -> IO ()
+    serveFile fsz [] = do
         -- No range given (or all ranges were invalid), so we handle regularly.
-        len <- hFileSize h
-        sendOkHeaders conn ohs $ fromInteger len
-        hCopyBytes h conn 0 len
-    serveFile h [r] = do
-        fs <- fmap fromInteger $ hFileSize h
+        sendOkHeaders conn ohs fsz
+        hCopyBytes fp conn 0 fsz
+    serveFile fsz [r] = do
         -- Send headers
-        sendPartialContentHeaders conn ohs r fs
+        sendPartialContentHeaders conn ohs r fsz
         -- Copy data from ranges into body.
-        hCopyRanges h conn [r]
-    serveFile h _ =
+        hCopyRanges fp conn [r]
+    serveFile _ _ =
         -- This requires multipart/byteranges, but we don't support that
         -- as of yet.
         error "Cannot handle multiple ranges in a single request."
