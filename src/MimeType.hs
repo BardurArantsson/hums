@@ -28,10 +28,12 @@ guessMimeType :: FilePath -> String
 guessMimeType fp =
     mimeType $ takeExtension fp
     where 
-      mimeType ".xml" = "text/xml"
-      mimeType ".avi" = "video/divx"   -- PlayStation 3 oddity ('x-msvideo' is standard)
-      mimeType ".mp3" = "audio/mpeg"
-      mimeType ".mpg" = "video/mpeg"
-      mimeType ".jpg" = "image/jpeg"
-      mimeType ".mp4" = "video/mp4"
-      mimeType _      = "application/octet-stream" -- Reasonable default
+      mimeType ".xml"  = "text/xml"
+      mimeType ".avi"  = "video/divx"   -- PlayStation 3 oddity ('x-msvideo' is standard)
+      mimeType ".mp3"  = "audio/mpeg"
+      mimeType ".mpg"  = "video/mpeg"
+      mimeType ".m2ts" = "video/mpeg"
+      mimeType ".m2t"  = "video/mpeg"
+      mimeType ".jpg"  = "image/jpeg"
+      mimeType ".mp4"  = "video/mp4"
+      mimeType _       = "application/octet-stream" -- Reasonable default
