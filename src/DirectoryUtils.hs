@@ -19,7 +19,6 @@
 module DirectoryUtils ( walkTree
                       ) where
 
-import System.IO
 import System.Directory
 import Control.Monad
 import System.FilePath

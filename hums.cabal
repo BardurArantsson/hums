@@ -11,7 +11,7 @@ Cabal-version:       >=1.6.0.1
 Build-type:          Simple
 Author:              Bardur Arantsson
 Maintainer:          Bardur Arantsson <bardur@scientician.net>
-Build-Depends:       base >= 3 && <4,
+Build-Depends:       base == 4.*,
                      haskell98,
                      network >= 2.2.0.1,
                      HTTP >= 4000.0.8,

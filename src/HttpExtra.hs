@@ -30,20 +30,20 @@ parseRange =
 parseFullRange :: GenParser Char a (Maybe Integer, Maybe Integer)
 parseFullRange = do
   i1 <- parseInteger
-  char '-'
+  _  <- char '-'
   i2 <- optionMaybe parseInteger
   return (Just i1, i2)
   
 parseEndRange :: GenParser Char a (Maybe Integer, Maybe Integer)
 parseEndRange = do
-  char '-'
+  _  <- char '-'
   i1 <- parseInteger
   return (Just $ -i1, Nothing)
 
 parseSingleByteRange :: GenParser Char a (Maybe Integer, Maybe Integer)
 parseSingleByteRange = do
   i1 <- parseInteger
-  char '-'
+  _  <- char '-'
   return (Just i1, Just i1)
 
 parseInteger :: GenParser Char a Integer
@@ -53,7 +53,7 @@ parseInteger = do
 
 parseRanges :: GenParser Char a [(Maybe Integer, Maybe Integer)]
 parseRanges = do
-  string "bytes="
+  _ <- string "bytes="
   parseRange `sepBy` char ','
 
 parseRangeHeader :: String -> [(Maybe Integer, Maybe Integer)]

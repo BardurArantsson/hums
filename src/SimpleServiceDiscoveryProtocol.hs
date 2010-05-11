@@ -65,7 +65,7 @@ sendRawMessage c m = do
   -- Open socket and send
   sock <- socket AF_INET Datagram 0
   bindSocket sock $ SockAddrInet aNY_PORT sa  -- Use local interface
-  sendTo sock m (SockAddrInet 1900 da)        -- Ignore return value
+  _ <- sendTo sock m (SockAddrInet 1900 da)        -- Ignore return value
   sClose sock
   return ()
 

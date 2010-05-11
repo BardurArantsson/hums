@@ -32,7 +32,6 @@ import Network.HTTP.Headers
 import Network.HTTP.Stream
 import Network.Socket
 import Network.StreamSocket()
-import System.IO
 import Control.Monad
 import Control.Concurrent
 import Control.Exception
@@ -63,7 +62,7 @@ runHttpServer' r p = do
 acceptConnection :: Socket -> RequestHandler -> IO ()
 acceptConnection listenSocket r = do
   (s,_) <- accept listenSocket
-  forkIO $ bracket 
+  _ <- forkIO $ bracket 
              (return s)
              sClose
              (handleHttpConnection r)
@@ -83,14 +82,14 @@ sendHeaders conn rCode rReason rHeaders = do
                      , rspReason = rReason
                      , rspHeaders = rHeaders
                      , rspBody = "" }
-  writeBlock conn $ show rsp      -- Writes headers only + CRLF.
+  _ <- writeBlock conn $ show rsp      -- Writes headers only + CRLF.
   return ()
 
 -- Write data to body of request. May be called multiple times after
 -- sendHeaders has been called.
 sendBody :: Stream s => s -> String -> IO ()
 sendBody conn body = do
-    writeBlock conn body
+    _ <- writeBlock conn body
     return ()
 
 

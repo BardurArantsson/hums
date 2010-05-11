@@ -26,7 +26,6 @@ import Text.XML.HXT.Arrow
 import Text.Printf
 import Configuration
 import Action
-import Data.AssocList (addEntries)
 import Data.Maybe (mapMaybe)
 import Object
 import Data.List.Utils

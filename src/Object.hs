@@ -34,10 +34,7 @@ import Action
 import Data.Map (Map)
 import qualified Data.Map as Map
 import DirectoryUtils
-import Data.Maybe
-import System.IO
 import System.FilePath
-import Data.List
 import MimeType
 import Data.Int
 import System.Posix

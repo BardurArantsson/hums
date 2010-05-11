@@ -27,7 +27,6 @@ import Control.Concurrent
 import HttpServer
 import Service
 import Text.Regex
-import Data.List
 import Text.Printf
 import Action
 import System.IO (withFile, hFileSize, IOMode(..))
@@ -291,16 +290,16 @@ main = niceSocketsDo $ do
 
       -- Start serving.
       putStrLn "Establishing HTTP server..."
-      forkIO $ runHttpServer dispatchTable $ httpServerPort c
-      putStrLn "Done."
+      _ <- forkIO $ runHttpServer dispatchTable $ httpServerPort c
+      _ <- putStrLn "Done."
       
       -- Start broadcasting alive messages.
       putStrLn "Establishing notification broadcaster..."
-      forkIO $ sendNotifyForever appInfo c mc
+      _ <- forkIO $ sendNotifyForever appInfo c mc
 
       -- Start scanning files/directories in the background.
       putStrLn "Establishing background scanner..."
-      forkIO $ periodicUpdate defaultObjects scanOnce'
+      _ <- forkIO $ periodicUpdate defaultObjects scanOnce'
 
       -- Wait for all threads to terminate.
       interact id

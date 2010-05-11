@@ -22,7 +22,6 @@ import Storable
 import Data.Word
 import Foreign.Marshal.Utils (with)
 import Text.Printf
-import Control.Monad
 
 -- Convert a storable to an [Word8].
 toWord8Array :: Storable a => a -> IO [Word8]
