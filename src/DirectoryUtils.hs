@@ -33,8 +33,13 @@ import Data.List
 walkTree :: a -> (a -> a -> FilePath -> IO a) -> FilePath -> IO a
 walkTree s0 f d = do
   -- FIXME: Need to detect loops!
-  -- Get files and directories in directory.
-  allNames <- getDirectoryContents d
+  -- Get files and directories in directory. If that fails
+  -- we just pretend there are none.
+  allNames <- catch 
+              (getDirectoryContents d) 
+              (\e -> do
+                  putStrLn $ "Error retrieving directory contents: " ++ show e -- Log errors
+                  return [])
   -- Filter out the special directories.
   let names = sort $ filter (not . isSpecialDirectory) allNames
   -- Produce full names.
@@ -43,12 +48,19 @@ walkTree s0 f d = do
   foldM traverse s0 fullNames
   where 
     traverse s n = do
-                    isDirectory <- doesDirectoryExist n
-                    if isDirectory then do
-                         s' <- f s0 s n
-                         walkTree s' f n
-                      else
-                         f s0 s n
+      isFile <- doesFileExist n
+      case isFile of
+        True -> f s0 s n
+        False -> do
+          isDirectory <- doesDirectoryExist n
+          case isDirectory of
+            True -> do 
+              s' <- f s0 s n
+              walkTree s' f n
+            False -> do
+              -- Not a directory nor an existing file. Conclusion: A dead symlink.
+              putStrLn $ "Ignoring dead symbolic link: " ++ (show n)
+              return s
 
     isSpecialDirectory ".." = True
     isSpecialDirectory "." = True
