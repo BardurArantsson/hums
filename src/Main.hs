@@ -18,7 +18,7 @@
 
 import Network.Utils
 import SimpleServiceDiscoveryProtocol
-import Configuration 
+import Configuration
 import Network.StreamSocket()
 import Control.Concurrent
 import HttpServer
@@ -37,7 +37,7 @@ import Handlers
 import HttpMonad (ifRegex)
 
 defaultMediaServerConfiguration :: String -> MediaServerConfiguration
-defaultMediaServerConfiguration uuid_ = 
+defaultMediaServerConfiguration uuid_ =
     MediaServerConfiguration { uuid = uuid_
                              , friendlyName = "hums"
                              , manufacturer = "Bardur Arantsson"
@@ -57,7 +57,7 @@ periodicUpdate a doUpdate =
     writeIORef a =<< doUpdate  -- Atomic replace
 
 scanOnce :: String -> IO Objects
-scanOnce directory = do 
+scanOnce directory = do
     putStrLn $ printf "Scanning directory '%s'" directory
     objects <- scanDirectory directory
     putStrLn $ printf "Scanning completed"
@@ -76,7 +76,7 @@ main = niceSocketsDo $ do
       let scanOnce' = scanOnce $ rootDirectory c
       defaultObjects_ <- scanOnce'
       defaultObjects <- newIORef defaultObjects_
-     
+
       -- Get the application information.
       appInfo <- getApplicationInformation
 
@@ -99,7 +99,7 @@ main = niceSocketsDo $ do
       putStrLn "Establishing HTTP server..."
       _ <- forkIO $ runHttpServer handlers $ httpServerPort c
       _ <- putStrLn "Done."
-      
+
       -- Start broadcasting alive messages.
       putStrLn "Establishing notification broadcaster..."
       _ <- forkIO $ sendNotifyForever appInfo c mc

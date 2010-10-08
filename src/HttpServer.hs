@@ -31,7 +31,7 @@ import HttpMonad (HttpT, runHttp)
 import Network.Socket.ByteString (sendAll)
 
 -- Request handlers.
-type RequestHandler = 
+type RequestHandler =
     Socket -> Request String -> IO ()
 
 runHttpServer' :: RequestHandler -> Word16 -> IO ()
@@ -47,7 +47,7 @@ runHttpServer' r p = do
 acceptConnection :: Socket -> RequestHandler -> IO ()
 acceptConnection listenSocket r = do
   (s,_) <- accept listenSocket
-  _ <- forkIO $ bracket 
+  _ <- forkIO $ bracket
              (return s)
              sClose
              (handleHttpConnection r)

@@ -45,7 +45,7 @@ myQuote =        -- TODO: There *must* be a better way to achieve our quoting ne
 
 
 sanitizeXmlChars :: String -> String
-sanitizeXmlChars = 
+sanitizeXmlChars =
     map f
     where
       f '<' = '_'
@@ -62,16 +62,16 @@ optSelem n (Just x) = selem n [txt x]
 data DeviceType = MediaServer
                 | ContentDirectoryDevice
                 | ConnectionManagerDevice
-                  
+
 deviceTypeToString :: DeviceType -> String
 deviceTypeToString ContentDirectoryDevice = "ContentDirectory"
 deviceTypeToString ConnectionManagerDevice = "ConnectionManager"
 deviceTypeToString MediaServer = "MediaServer"
 
 serviceNs :: ArrowXml a => String -> DeviceType -> a XmlTree XmlTree
-serviceNs prefix st = 
+serviceNs prefix st =
     sattr an av
-    where 
+    where
       an = printf "xmlns:%s" prefix
       av = printf "urn:schemas-upnp-org:service:%s:1" $ deviceTypeToString st
 
@@ -81,11 +81,11 @@ serviceNs' = printf "urn:schemas-upnp-org:service:%s:1" . deviceTypeToString
 -- Generate the icon list.
 generateIconList :: ArrowXml a => Bool -> a XmlTree XmlTree
 generateIconList False = cmt " omitted device icon list "
-generateIconList True = 
-    selem "iconList" 
+generateIconList True =
+    selem "iconList"
               [ selem "icon"
                 [ selem "mimetype" [ txt $ guessMimeType imageUrl ]
-                , selem "width"    [ txt "240" ] 
+                , selem "width"    [ txt "240" ]
                 , selem "height"   [ txt "240" ]
                 , selem "url"      [ txt imageUrl ]
                 ]
@@ -94,21 +94,21 @@ generateIconList True =
       imageUrl = "/static/images/hums.jpg"
 
 generateServiceList :: ArrowXml a => [DeviceType] -> a XmlTree XmlTree
-generateServiceList services = 
+generateServiceList services =
     selem "serviceList" $ map generateService services
     where
       generateService service =
-          selem "service" 
+          selem "service"
                     [ selem "serviceType" [txt $ serviceNs' service]
                     , selem "serviceId" [txt $ printf "urn:upnp-org:serviceId:%s" dt]
                     , selem "SCPDURL" [txt $ printf "/static/services/%s/description.xml" dt]
                     , selem "controlURL" [txt $ printf "/dynamic/services/%s/control/" dt]
-	            , selem "eventSubURL" [txt $ printf "/dynamic/services/%s/event/" dt]
+                    , selem "eventSubURL" [txt $ printf "/dynamic/services/%s/event/" dt]
                     ]
           where dt = deviceTypeToString service
 
 generateDescription :: ArrowXml a => Configuration -> MediaServerConfiguration -> [DeviceType] -> a XmlTree XmlTree
-generateDescription c mc services = 
+generateDescription c mc services =
     root []
      [ mkelem "root" [sattr "xmlns" "urn:schemas-upnp-org:device-1-0"]
        [ selem "specVersion"
@@ -167,7 +167,7 @@ generateBrowseResponseXml cfg st os (BrowseMetadata bps) = do
                ]
              ]
   generateResponseXml body
-  where 
+  where
     didl = mkDidl [generateObjectElement cfg os (oid,o)]
     oid = objectId bps
     o = findExistingByObjectId oid os -- TODO: Might handle non-existing objects better.
@@ -183,7 +183,7 @@ generateBrowseResponseXml cfg st os (BrowseDirectChildren bps) = do
                ]
              ]
   generateResponseXml body
-  where 
+  where
     oid = objectId bps
     si = startingIndex bps
     rc = requestedCount bps
@@ -208,20 +208,20 @@ generateActionResponseXml cfg st os (ContentDirectoryBrowse ba) =
 
 generateActionResponseXml _ st _ ContentDirectoryGetSearchCapabilities =
   generateXml [] $ generateSoapEnvelope body
-  where 
+  where
     body = [ mkelem "u:GetSearchCapabilitiesResponse" [ serviceNs "u" st ]
              [ selem "SearchCaps" [ txt "" ] ]   -- No search capabilities (CD/§2.5.18)
            ]
 
 generateActionResponseXml _ st _ ContentDirectoryGetSortCapabilities =
   generateXml [] $ generateSoapEnvelope body
-  where 
+  where
     body = [ mkelem "u:GetSortCapabilitiesResponse" [ serviceNs "u" st ]
              [ selem "SortCaps" [ txt "" ] ]   -- No sorting capabilities (CD/§2.5.19)
            ]
 
 generateSoapEnvelope :: ArrowXml a => [a XmlTree XmlTree] -> a XmlTree XmlTree
-generateSoapEnvelope b = 
+generateSoapEnvelope b =
     root []
       [ mkelem "s:Envelope" [ soapNs, soapEncodingStyle ]
         [ selem "s:Body" b ]
@@ -233,7 +233,7 @@ generateSoapEnvelope b =
 
 
 generateObjectElement :: ArrowXml a => Configuration -> Objects -> (ObjectId, Object) -> a XmlTree XmlTree
-generateObjectElement cfg objects (oid, o) = 
+generateObjectElement cfg objects (oid, o) =
     mkelem en (as ++ eas)
      ([ selem "dc:title" [ txt $ sanitizeXmlChars $ objectTitle od ]
       , selem "upnp:class" [ txt $ getObjectClassName o ]
@@ -242,7 +242,7 @@ generateObjectElement cfg objects (oid, o) =
       od = getObjectData o
       en = getObjectElementName o
       ee = generateExtraElements cfg (oid,o)
-      as = [ sattr "id" oid 
+      as = [ sattr "id" oid
            , sattr "parentID" $ objectParentId od
            ]
       eas = generateExtraAttributes objects (oid,o)
@@ -258,14 +258,14 @@ generateExtraAttributes _ (_, (ItemVideoMovie,_)) = genItemAttributes
 
 -- Generate content URL
 generateContentUrl :: ArrowXml a => Configuration -> ObjectId -> a XmlTree XmlTree
-generateContentUrl cfg oid = 
+generateContentUrl cfg oid =
     txt $ show $ mkURI ["content", oid] $ httpServerBase cfg
 
 -- Generate any extra elements for any given object.
 generateExtraElements :: ArrowXml a => Configuration -> (ObjectId, Object) -> [a XmlTree XmlTree]
 generateExtraElements _ (oid, (Container,_)) = []
 generateExtraElements _ (oid, (ContainerStorageFolder,_)) = []
-generateExtraElements cfg (oid, (ItemMusicTrack,d)) = 
+generateExtraElements cfg (oid, (ItemMusicTrack,d)) =
     [ mkelem "res" [ sattr "protocolInfo" protocolInfo
                    , sattr "size" $ printf "%d" $ objectFileSize d ] -- TODO: should be disabled by Transcoding flag!
       [ generateContentUrl cfg oid ]
@@ -275,7 +275,7 @@ generateExtraElements cfg (oid, (ItemMusicTrack,d)) =
       protocolInfo = generateProtocolInfo cfg False mimeType Nothing  -- TODO: profileId
 
 generateExtraElements cfg (oid, (ItemVideoMovie,d)) =
-    [ mkelem "res" [ sattr "protocolInfo" protocolInfo 
+    [ mkelem "res" [ sattr "protocolInfo" protocolInfo
                    , sattr "size" $ printf "%d" $ objectFileSize d ] -- TODO: should be disabled by Transcoding flag!
       [ generateContentUrl cfg oid ]
     ]
@@ -290,7 +290,7 @@ mapMaybe1 f (Just a) = Just $ f a
 generateProtocolInfo :: Configuration -> Bool -> String -> Maybe String -> String
 generateProtocolInfo cfg transcode mimeType profileId =
     protocolPrefix ++ protocolSuffix
-    where 
+    where
       playSpeed = 1 :: Int           -- DLNA play speed: Normal
       conversionFlags =              -- DLNA conversion flags
           if transcode then 1 else 0 :: Int
@@ -310,10 +310,10 @@ generateProtocolInfo cfg transcode mimeType profileId =
                 , ("DLNA.ORG_PN", dlnaProfileName cfg)
                 , ("DLNA.ORG_FLAGS" , Just $ printf "%08x%024x" flags (0 :: Int32) ) ]
       protocolPrefix = "http-get:*:" ++ mimeType ++ ":"
-      protocolSuffix = 
+      protocolSuffix =
           if useDlna cfg then
               join ";" $ mapMaybe (\(n,v) -> mapMaybe1 (printf "%s=%s" n) v) fields
-          else 
+          else
               "*"
       -- Protocol constants.
       _DLNA_ORG_FLAG_SENDER_PACED              = bit 31 :: Int32

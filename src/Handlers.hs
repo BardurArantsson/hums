@@ -24,7 +24,7 @@ module Handlers ( rootDescriptionHandler
                 ) where
 
 import Soap
-import Configuration 
+import Configuration
 import Network.HTTP.Base
 import Network.HTTP.Headers
 import Network.StreamSocket()
@@ -63,9 +63,9 @@ type State = (Configuration, MediaServerConfiguration, ApplicationInformation, [
 hCanonicalizeRanges :: Integer -> [(Maybe Integer, Maybe Integer)] -> [(Integer,Integer)]
 hCanonicalizeRanges fsz ranges =
   map f ranges
-  where 
+  where
     f (lo,hi) = do
-      let lo' = case lo of 
+      let lo' = case lo of
                   Just x -> x
                   Nothing -> 0
       let hi' = case hi of
@@ -74,7 +74,7 @@ hCanonicalizeRanges fsz ranges =
       (lo', hi')
 
 fileSize :: FilePath -> IO Integer
-fileSize fp = 
+fileSize fp =
   withFile fp ReadMode $ \h -> hFileSize h
 
 serveStaticFile :: String -> FilePath -> HttpT IO ()
@@ -120,7 +120,7 @@ serveStaticFile mimeType fp = do
 dotDotSlash :: Regex
 dotDotSlash = mkRegex "\\.\\./"
 slashDotDot :: Regex
-slashDotDot = mkRegex "/\\.\\." 
+slashDotDot = mkRegex "/\\.\\."
 
 -- Handler for the root description.
 rootDescriptionHandler :: State -> [String] -> HttpT IO ()

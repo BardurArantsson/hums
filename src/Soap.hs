@@ -34,7 +34,7 @@ textAtTag :: ArrowXml a => String -> a XmlTree String
 textAtTag tag = atTag tag >>> text
 
 numberAtTag :: (ArrowXml a, Num b, Read b) => String -> a XmlTree b
-numberAtTag tag = 
+numberAtTag tag =
     atTag tag >>> text >>> arr read
 
 -- Parse the "Browse Flag". CD/§2.5.6
@@ -55,7 +55,7 @@ parseCDBrowse :: ArrowXml a => a XmlTree ContentDirectoryAction
 parseCDBrowse =
     atTag "Browse" >>>
           proc l -> do
-            oid        <- textAtTag "ObjectID"  
+            oid        <- textAtTag "ObjectID"
                  `orElse` textAtTag "ContainerID" {- XBox-360 -}  -< l
             bf         <- parseBrowseFlag                           -< l
             flt        <- textAtTag "Filter"                        -< l
@@ -64,7 +64,7 @@ parseCDBrowse =
             sc         <- textAtTag "SortCriteria"                  -< l
             returnA    -< let bps = BrowseParameters oid flt si rq sc in
                             ContentDirectoryBrowse $ bf bps
-      
+
 parseCDSearchCapabilities :: ArrowXml a => a XmlTree ContentDirectoryAction
 parseCDSearchCapabilities =
     atTag "GetSearchCapabilities" >>>
@@ -81,7 +81,7 @@ parseCDGetSystemUpdateId =
           proc _ -> returnA -< ContentDirectoryGetSystemUpdateId
 
 parseContentDirectoryQueryXml :: ArrowXml a => a XmlTree Action
-parseContentDirectoryQueryXml = 
+parseContentDirectoryQueryXml =
     proc l -> do
       x <- helper    -< l
       returnA -< ContentDirectoryAction_ x
@@ -96,27 +96,27 @@ parseContentDirectoryQueryXml =
 
 -}
 parseCMGetProtocolInfo :: ArrowXml a => a XmlTree ConnectionManagerAction
-parseCMGetProtocolInfo = 
+parseCMGetProtocolInfo =
     atTag "GetProtocolInfo" >>>
           proc _ -> returnA -< ConnectionManagerGetProtocolInfo
 
 parseCMPrepareForConnection :: ArrowXml a => a XmlTree ConnectionManagerAction
-parseCMPrepareForConnection = 
+parseCMPrepareForConnection =
     atTag "PrepareForConnection" >>>
           proc _ -> returnA -< ConnectionManagerPrepareForConnection
 
 parseCMConnectionComplete :: ArrowXml a => a XmlTree ConnectionManagerAction
-parseCMConnectionComplete = 
+parseCMConnectionComplete =
     atTag "ConnectionComplete" >>>
           proc _ -> returnA -< ConnectionManagerConnectionComplete
 
 parseCMGetCurrentConnectionIDs :: ArrowXml a => a XmlTree ConnectionManagerAction
-parseCMGetCurrentConnectionIDs = 
+parseCMGetCurrentConnectionIDs =
     atTag "GetCurrentConnectionIDs" >>>
           proc _ -> returnA -< ConnectionManagerGetCurrentConnectionIDs
 
 parseCMGetCurrentConnectionInfo :: ArrowXml a => a XmlTree ConnectionManagerAction
-parseCMGetCurrentConnectionInfo = 
+parseCMGetCurrentConnectionInfo =
     atTag "GetCurrentConnectionInfo" >>>
           proc _ -> returnA -< ConnectionManagerGetCurrentConnectionInfo
 
@@ -132,7 +132,7 @@ parseConnectionManagerQueryXml =
                                      `orElse` parseCMGetCurrentConnectionInfo
 
 parseQueryXml :: ArrowXml a => a XmlTree Action
-parseQueryXml = 
+parseQueryXml =
     parseContentDirectoryQueryXml `orElse` parseConnectionManagerQueryXml
 
 {-
@@ -140,8 +140,6 @@ parseQueryXml =
   Parse SOAP messages.
 
 -}
-
-
 
 parseControlSoapXml :: String -> IO (Maybe Action)
 parseControlSoapXml xml = do
