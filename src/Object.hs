@@ -33,6 +33,7 @@ module Object ( Objects( systemUpdateId )
 import Action
 import Data.Map (Map)
 import qualified Data.Map as Map
+import Data.List (isPrefixOf)
 import DirectoryUtils
 import System.FilePath
 import MimeType
@@ -40,8 +41,6 @@ import Data.Int
 import System.Posix
 import Text.Printf
 import StorableExtra
-import Text.Regex
-import RegexExtra
 
 -- Root object id is defined by CD/§2.7.4.2.
 rootObjectId :: ObjectId
@@ -52,11 +51,11 @@ rootObjectParentId :: ObjectId
 rootObjectParentId = "-1"
 
 -- Dispatch table for selecting item type from MIME type.
-objectTypeTable :: [(Regex, ObjectType)]
-objectTypeTable = [ (mkRegex "^video/.*", ItemVideoMovie)
-                  , (mkRegex "^audio/.*", ItemMusicTrack)
-                  , (mkRegex "^inode/directory$", ContainerStorageFolder)
-                  ]
+mimeTypeToObjectType :: String -> Maybe ObjectType
+mimeTypeToObjectType s | ("video/" `isPrefixOf` s) = Just ItemVideoMovie
+mimeTypeToObjectType s | ("audio/" `isPrefixOf` s) = Just ItemMusicTrack
+mimeTypeToObjectType s | ("inode/directory"  == s) = Just ContainerStorageFolder
+mimeTypeToObjectType _ = Nothing
 
 -- An Objects is an abstract data type containing a set of
 -- objects.
@@ -156,9 +155,9 @@ scanFile parentObjects objects fp = do
   -- Construct object data.
   let objectData = MkObjectData kp _title fp sz lastModified mimeType
   -- Add the directory entry to the current accumulator.
-  return $ case dispatch objectTypeTable mimeType of
-             Just (objectType,_) -> (oid, (objectType,objectData)) : objects
-             Nothing -> objects
+  return $ case mimeTypeToObjectType mimeType of
+    Just objectType -> (oid, (objectType,objectData)) : objects
+    Nothing -> objects
   where
     round' :: Rational -> Int64          -- Dummy to avoid warning
     round' = round

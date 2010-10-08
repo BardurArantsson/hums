@@ -48,7 +48,6 @@ Other-modules:       Paths_hums
                      SimpleServiceDiscoveryProtocol
                      HttpExtra
                      HttpMonad
-                     RegexExtra
                      Service
                      Handlers
                      Configuration
