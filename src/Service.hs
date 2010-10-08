@@ -21,8 +21,8 @@ module Service ( generateDescriptionXml
                , DeviceType(..)
                , deviceTypeToString
                ) where
-    
-import Text.XML.HXT.Arrow
+
+import Text.XML.HXT.Core
 import Text.Printf
 import Configuration
 import Action
@@ -33,9 +33,6 @@ import Data.Bits
 import Data.Int
 import MimeType
 import URIExtra
-
-defaultEncodingAttributes :: Attributes
-defaultEncodingAttributes = [ (a_output_encoding, utf8) ]
 
 myQuote :: String -> String
 myQuote =        -- TODO: There *must* be a better way to achieve our quoting needs.
@@ -144,9 +141,9 @@ generateDescription c mc services =
       presentationUrl = "index.html"
 
 -- Transform an XmlTree to a string.
-generateXml :: Attributes -> IOSLA (XIOState ()) XmlTree XmlTree -> IO String
-generateXml as a = do
-  xml <- runX (a >>> writeDocumentToString (addEntries as defaultEncodingAttributes))
+generateXml :: SysConfigList -> IOSLA (XIOState ()) XmlTree XmlTree -> IO String
+generateXml conf a = do
+  xml <- runX (a >>> writeDocumentToString (withOutputEncoding utf8 : conf))
   return $ concat xml
 
 generateDescriptionXml :: Configuration -> MediaServerConfiguration -> [DeviceType] -> IO String
@@ -156,7 +153,7 @@ generateDescriptionXml c mc =
 
 generateResponseXml :: [IOSLA (XIOState ()) XmlTree XmlTree] -> IO String
 generateResponseXml =
-  generateXml [(a_output_xml,v_0)] . generateSoapEnvelope
+  generateXml [ withOutputPLAIN ] . generateSoapEnvelope
 
 generateBrowseResponseXml :: Configuration -> DeviceType -> Objects -> BrowseAction -> IO String
 

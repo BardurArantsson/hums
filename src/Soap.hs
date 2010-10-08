@@ -19,16 +19,8 @@
 module Soap ( parseControlSoapXml
             ) where
 
-import Text.XML.HXT.Arrow
+import Text.XML.HXT.Core
 import Action
-
--- ContentDirectory XML name space
-nsContentDirectory :: String
-nsContentDirectory = "urn:schemas-upnp-org:service:ContentDirectory:1"
-
--- ConnectionManager XML name space
-nsConnectionManager :: String
-nsConnectionManager = "urn:schemas-upnp-org:service:ConnectionManager:1"
 
 -- Utility functions for parsing XML.
 atTag :: ArrowXml a => String -> a XmlTree XmlTree
@@ -61,7 +53,7 @@ parseBrowseFlag =
 -}
 parseCDBrowse :: ArrowXml a => a XmlTree ContentDirectoryAction
 parseCDBrowse =
-    atTag "Browse" >>> hasNamespaceUri nsContentDirectory >>>
+    atTag "Browse" >>>
           proc l -> do
             oid        <- textAtTag "ObjectID"  
                  `orElse` textAtTag "ContainerID" {- XBox-360 -}  -< l
@@ -75,17 +67,17 @@ parseCDBrowse =
       
 parseCDSearchCapabilities :: ArrowXml a => a XmlTree ContentDirectoryAction
 parseCDSearchCapabilities =
-    atTag "GetSearchCapabilities" >>> hasNamespaceUri nsContentDirectory >>>
+    atTag "GetSearchCapabilities" >>>
           proc _ -> returnA -< ContentDirectoryGetSearchCapabilities
 
 parseCDGetSortCapabilities :: ArrowXml a => a XmlTree ContentDirectoryAction
 parseCDGetSortCapabilities =
-    atTag "GetSortCapabilities" >>> hasNamespaceUri nsContentDirectory >>>
+    atTag "GetSortCapabilities" >>>
           proc _ -> returnA -< ContentDirectoryGetSortCapabilities
 
 parseCDGetSystemUpdateId :: ArrowXml a => a XmlTree ContentDirectoryAction
 parseCDGetSystemUpdateId =
-    atTag "GetSystemUpdateID" >>> hasNamespaceUri nsContentDirectory >>>
+    atTag "GetSystemUpdateID" >>>
           proc _ -> returnA -< ContentDirectoryGetSystemUpdateId
 
 parseContentDirectoryQueryXml :: ArrowXml a => a XmlTree Action
@@ -105,27 +97,27 @@ parseContentDirectoryQueryXml =
 -}
 parseCMGetProtocolInfo :: ArrowXml a => a XmlTree ConnectionManagerAction
 parseCMGetProtocolInfo = 
-    atTag "GetProtocolInfo" >>> hasNamespaceUri nsConnectionManager >>>
+    atTag "GetProtocolInfo" >>>
           proc _ -> returnA -< ConnectionManagerGetProtocolInfo
 
 parseCMPrepareForConnection :: ArrowXml a => a XmlTree ConnectionManagerAction
 parseCMPrepareForConnection = 
-    atTag "PrepareForConnection" >>> hasNamespaceUri nsConnectionManager >>>
+    atTag "PrepareForConnection" >>>
           proc _ -> returnA -< ConnectionManagerPrepareForConnection
 
 parseCMConnectionComplete :: ArrowXml a => a XmlTree ConnectionManagerAction
 parseCMConnectionComplete = 
-    atTag "ConnectionComplete" >>> hasNamespaceUri nsConnectionManager >>>
+    atTag "ConnectionComplete" >>>
           proc _ -> returnA -< ConnectionManagerConnectionComplete
 
 parseCMGetCurrentConnectionIDs :: ArrowXml a => a XmlTree ConnectionManagerAction
 parseCMGetCurrentConnectionIDs = 
-    atTag "GetCurrentConnectionIDs" >>> hasNamespaceUri nsConnectionManager >>>
+    atTag "GetCurrentConnectionIDs" >>>
           proc _ -> returnA -< ConnectionManagerGetCurrentConnectionIDs
 
 parseCMGetCurrentConnectionInfo :: ArrowXml a => a XmlTree ConnectionManagerAction
 parseCMGetCurrentConnectionInfo = 
-    atTag "GetCurrentConnectionInfo" >>> hasNamespaceUri nsConnectionManager >>>
+    atTag "GetCurrentConnectionInfo" >>>
           proc _ -> returnA -< ConnectionManagerGetCurrentConnectionInfo
 
 parseConnectionManagerQueryXml :: ArrowXml a => a XmlTree Action
@@ -153,11 +145,13 @@ parseQueryXml =
 
 parseControlSoapXml :: String -> IO (Maybe Action)
 parseControlSoapXml xml = do
-    as <- runX $ readString inAttributes xml >>> parseQueryXml
+    as <- runX $ readString conf xml >>> parseQueryXml
     case as of
       (a:_) -> return $ Just a
       _     -> return $ Nothing
     where
-      inAttributes = [ (a_validate, v_0)
-                     , (a_check_namespaces, v_1) 
-                     ]
+      conf :: SysConfigList
+      conf = [ withValidate no
+             , withCheckNamespaces False
+             , withTrace 3
+             ]
