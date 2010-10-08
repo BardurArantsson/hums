@@ -19,7 +19,7 @@
 module Service ( generateDescriptionXml
                , generateActionResponseXml
                , DeviceType(..)
-               , stringToDeviceType
+               , deviceTypeToString
                ) where
     
 import Text.XML.HXT.Arrow
@@ -70,11 +70,6 @@ deviceTypeToString :: DeviceType -> String
 deviceTypeToString ContentDirectoryDevice = "ContentDirectory"
 deviceTypeToString ConnectionManagerDevice = "ConnectionManager"
 deviceTypeToString MediaServer = "MediaServer"
-
-stringToDeviceType :: String -> Maybe DeviceType
-stringToDeviceType "ContentDirectory" = Just ContentDirectoryDevice
-stringToDeviceType "ConnectionManager" = Just ConnectionManagerDevice
-stringToDeviceType _ = Nothing
 
 serviceNs :: ArrowXml a => String -> DeviceType -> a XmlTree XmlTree
 serviceNs prefix st = 

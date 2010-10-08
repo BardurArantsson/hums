@@ -23,10 +23,12 @@ Build-Depends:       base == 4.*,
                      containers >= 0.1.0.1,
                      uuid >= 1.0.0,
                      bytestring >= 0.9.0.1,
+                     utf8-string == 0.3.*,
                      MissingH >= 1.0.1,
                      hxt >= 8.3.1 && < 8.6,
                      ConfigFile >= 1.0.5,
-                     mtl >= 1.1.0.2,
+                     mtl >= 1.1.0.2, 
+                     transformers == 0.2.*,
                      network-bytestring >= 0.1.2.1 && <0.2
 data-dir:            data
 data-files:          hums.cfg 
@@ -35,7 +37,7 @@ data-files:          hums.cfg
                      www/services/ContentDirectory/description.xml
 
 Executable:          hums
-Extensions:          Arrows
+Extensions:          Arrows GeneralizedNewtypeDeriving
 ghc-options:         -Wall -fno-warn-unused-matches -threaded
 hs-source-dirs:      src
 Main-is:             Main.hs
@@ -45,6 +47,7 @@ Other-modules:       Paths_hums
                      URIExtra
                      SimpleServiceDiscoveryProtocol
                      HttpExtra
+                     HttpMonad
                      RegexExtra
                      Service
                      Handlers

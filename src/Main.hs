@@ -23,7 +23,6 @@ import Network.StreamSocket()
 import Control.Concurrent
 import HttpServer
 import Service
-import Text.Regex
 import Text.Printf
 import qualified Data.UUID as U
 import qualified Data.UUID.V1 as U1
@@ -35,6 +34,7 @@ import Data.ConfigFile
 import Paths_hums
 import Data.IORef
 import Handlers
+import HttpMonad (ifRegex)
 
 defaultMediaServerConfiguration :: String -> MediaServerConfiguration
 defaultMediaServerConfiguration uuid_ = 
@@ -87,17 +87,17 @@ main = niceSocketsDo $ do
       let services = [ ContentDirectoryDevice, ConnectionManagerDevice ]
       let st = (c,mc,appInfo,services, defaultObjects)
 
-      let dispatchTable = 
-              [ (mkRegex "^/description\\.xml$", rootDescriptionHandler st)
-              , (mkRegex "^/static/(.*)$", staticHandler $ dataDirectory </> "www")
-              , (mkRegex "^/dynamic/services/([^/]+)/control/?$", serviceControlHandler st)
-              , (mkRegex "^/content/([0-9a-f,]+)$", contentHandler st)
-              , (mkRegex "(.*)", fallbackHandler)
-              ]
+      let handlers =
+            ifRegex "^/description\\.xml$" (rootDescriptionHandler st) $
+            ifRegex "^/static/(.*)$" (staticHandler $ dataDirectory </> "www") $
+            ifRegex "^/dynamic/services/ContentDirectory/control/?$" (serviceControlHandler st ContentDirectoryDevice) $
+            ifRegex "^/dynamic/services/ConnectionManager/control/?$" (serviceControlHandler st ConnectionManagerDevice) $
+            ifRegex "^/content/([0-9a-f,]+)$" (contentHandler st) $
+            fallbackHandler
 
       -- Start serving.
       putStrLn "Establishing HTTP server..."
-      _ <- forkIO $ runHttpServer dispatchTable $ httpServerPort c
+      _ <- forkIO $ runHttpServer handlers $ httpServerPort c
       _ <- putStrLn "Done."
       
       -- Start broadcasting alive messages.

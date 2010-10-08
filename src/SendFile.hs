@@ -16,19 +16,16 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 -}
 
---
--- This exists because Network.Socket.SendFile isn't usable on Linux as of 0.4.
---
-module SendFile ( sendFile' 
+module SendFile ( sendFile
                 ) where
 
-import Data.ByteString as BS (hGet, length)
-import Network.Socket.ByteString (sendAll)
-import Network.Socket (Socket)
+import Data.ByteString (hGet, ByteString)
+import qualified Data.ByteString as BS
 import System.IO (hSeek, withFile, IOMode(..), SeekMode(..))
 
-sendFile' :: Socket -> FilePath -> Integer -> Integer -> IO ()
-sendFile' outs inp off count = do
+-- Send contents of a file.
+sendFile :: (ByteString -> IO ()) -> FilePath -> Integer -> Integer -> IO ()
+sendFile output inp off count = do
   withFile inp ReadMode (\h -> do
     hSeek h AbsoluteSeek off
     rsend h count)
@@ -36,5 +33,5 @@ sendFile' outs inp off count = do
           rsend h reqBytes = do
               let bytes = min 32768 reqBytes :: Integer
               buf <- hGet h (fromIntegral bytes)
-              sendAll outs buf
+              output buf
               rsend h (reqBytes - (fromIntegral $ BS.length buf))

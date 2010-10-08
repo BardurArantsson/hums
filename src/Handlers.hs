@@ -28,7 +28,6 @@ import Configuration
 import Network.HTTP.Base
 import Network.HTTP.Headers
 import Network.StreamSocket()
-import HttpServer
 import Service
 import Text.Regex
 import Text.Printf
@@ -40,32 +39,12 @@ import HttpExtra
 import System.FilePath
 import Data.Maybe (isJust)
 import Data.IORef
-import Network.Socket (Socket)
-import SendFile (sendFile')
-
+import HttpMonad
+import Control.Monad.Trans.Class (lift)
+import Data.ByteString.UTF8 (fromString)
+import Control.Monad.IO.Class (MonadIO)
 
 type State = (Configuration, MediaServerConfiguration, ApplicationInformation, [DeviceType], IORef Objects)
-
-
-rootDescriptionHandler :: State -> Socket -> Request String -> [String] -> IO ()
-rootDescriptionHandler (c,mc,ai,s,_) conn r gs = do
-  putStrLn "Got request for root description."
-  xml <- generateDescriptionXml c mc s
-  putStrLn "Generated root description."
-  sendXmlResponse conn (getExtraHeaders ai) xml
-  putStrLn "Send root description."
-
-hCopyBytes :: FilePath -> Socket -> Integer -> Integer -> IO ()
-hCopyBytes src dst ofs len = do
-  putStrLn $ printf "Sending %d bytes..." len
-  sendFile' dst src ofs len
-
--- Copy a set of ranges between two handles.
-hCopyRanges :: FilePath -> Socket -> [(Integer,Integer)] -> IO ()
-hCopyRanges src conn ranges =
-  mapM_ copyRange ranges
-  where
-    copyRange (lo, hi) = hCopyBytes src conn lo $ fromInteger $ hi - lo + 1
 
 {-
 
@@ -98,36 +77,42 @@ fileSize :: FilePath -> IO Integer
 fileSize fp = 
   withFile fp ReadMode $ \h -> hFileSize h
 
-serveStaticFile :: Socket -> [Header] -> String -> FilePath -> IO ()
-serveStaticFile conn hs mimeType fp = do
-  putStrLn $ printf "Serving file '%s'..." fp
-
+serveStaticFile :: String -> FilePath -> HttpT IO ()
+serveStaticFile mimeType fp = do
+  logMessage $ printf "Serving file '%s'..." fp
   -- Do we have a range header?
-  let ranges = 
+  hs <- fmap getHeaders getRequest
+  let ranges =
           case lookupHeader HdrRange hs of
             Just value -> parseRangeHeader value
             Nothing    -> []       -- Whole file
 
+  -- Set up the common headers.
+  addHeader (Header HdrContentType mimeType)
+  addHeader (Header (HdrCustom "Accept-Ranges") "bytes")
+  addHeader (Header HdrConnection "close")
+
   -- Serve the ranges.
-  fsz <- fileSize fp
+  fsz <- lift $ fileSize fp
   let ranges' = hCanonicalizeRanges fsz ranges
   serveFile fsz ranges'
-  where 
-    ohs = [ Header HdrContentType mimeType ]
-    serveFile :: Integer -> [(Integer,Integer)] -> IO ()
+  where
     serveFile fsz [] = do
-        -- No range given (or all ranges were invalid), so we handle regularly.
-        sendOkHeaders conn ohs fsz
-        hCopyBytes fp conn 0 fsz
-    serveFile fsz [r] = do
-        -- Send headers
-        sendPartialContentHeaders conn ohs r fsz
-        -- Copy data from ranges into body.
-        hCopyRanges fp conn [r]
+        -- Set the headers for full transfer.
+        setResponseCode OK
+        setContentLength $ Just fsz
+        -- Send the file contents.
+        writeFileToBody fp 0 fsz
+    serveFile fsz [(rLow,rHigh)] = do
+        -- Set the headers for partial content.
+        setResponseCode PartialContent
+        setContentLength $ Just (rHigh-rLow+1)
+        addHeader (Header HdrContentRange $ printf "%d-%d/%d" rLow rHigh fsz)
+        -- Send the file contents.
+        writeFileToBody fp rLow $ fromInteger $ rHigh - rLow + 1
     serveFile _ _ =
-        -- This requires multipart/byteranges, but we don't support that
-        -- as of yet.
-        error "Cannot handle multiple ranges in a single request."
+        -- This requires multipart/byteranges, but we don't support that as of yet.
+        sendError NotImplemented
 
 
 -- Regular expressions for avoiding relative URLs. These
@@ -137,90 +122,100 @@ dotDotSlash = mkRegex "\\.\\./"
 slashDotDot :: Regex
 slashDotDot = mkRegex "/\\.\\." 
 
+-- Handler for the root description.
+rootDescriptionHandler :: State -> [String] -> HttpT IO ()
+rootDescriptionHandler (c,mc,ai,s,_) gs = do
+  logMessage "Got request for root description."
+  xml <- lift $ generateDescriptionXml c mc s
+  sendXml xml
+  logMessage "Sent root description."
+
 -- Handle static files.
-staticHandler :: String -> Socket -> Request String -> [String] -> IO ()
-staticHandler root conn req gs = do
-    putStrLn $ "Got request for static content: " ++ show gs
-    case gs of
-      [p] -> if isJust (matchRegex dotDotSlash p) ||     -- Reject relative URLs.
-                isJust (matchRegex slashDotDot p) then
-                 sendErrorResponse conn InternalServerError []
-               else
-                   serveStaticFile conn (getHeaders req) mimeType fp
-             where 
-               fp = root </> p
-               mimeType = guessMimeType fp
-      _ -> sendErrorResponse conn InternalServerError []
-    
+staticHandler :: String -> [String] -> HttpT IO ()
+staticHandler root gs = do
+  logMessage $ "Got request for static content: " ++ show gs
+  case gs of
+    [p] -> if isJust (matchRegex dotDotSlash p) ||     -- Reject relative URLs.
+              isJust (matchRegex slashDotDot p) then
+             sendError InternalServerError
+           else
+             serveStaticFile mimeType fp
+           where
+             fp = root </> p
+             mimeType = guessMimeType fp
+    _ ->
+      sendError InternalServerError
 
-
--- TODO: Should we generate a DATE header?
-getExtraHeaders :: ApplicationInformation -> [ Header ]
-getExtraHeaders ai = [ Header (HdrCustom "contentFeatures.dlna.org") ""
-                     , Header (HdrCustom "EXT") ""
-                     , Header (HdrCustom "Server") (getServerHeaderValue ai)
-                     , Header (HdrCustom "Accept-Ranges") "bytes"
-                     ]
-
-contentHandler :: State -> Socket -> Request String -> [String] -> IO ()
-contentHandler (c,mc,ai,s,objects_) conn r gs = do
-  objects <- readIORef objects_     -- Current snapshot of object tree.
+-- Handle requests for content.
+contentHandler :: State -> [String] -> HttpT IO ()
+contentHandler (c,mc,ai,s,objects_) gs = do
+  objects <- lift $ readIORef objects_     -- Current snapshot of object tree.
   case gs of
     [oid] -> do
-            putStrLn $ printf "Got request for CONTENT for objectId=%s" oid
-            -- Serve the file which the object maps to.
-            case findByObjectId oid objects of
-                 Just o -> serveStaticFile conn (getHeaders r) mt fp
-                           where 
-                             od = getObjectData o
-                             fp = objectFileName od
-                             mt = objectMimeType od
-                 Nothing -> sendErrorResponse conn NotFound []
-
-    _ -> sendErrorResponse conn InternalServerError []
-
-
-
-serviceControlHandler :: State -> Socket -> Request String -> [String] -> IO ()
-serviceControlHandler (c,mc,ai,s,objects_) conn r gs = do
-  objects <- readIORef objects_      -- Current snapshot of object tree.
-  case gs of
-    [sn] -> do
-            putStrLn $ printf "Got request for CONTROL for service '%s'" sn
-            case stringToDeviceType sn of
-              Just dt -> do
-                -- Parse the SOAP request
-                let requestXml = rqBody r
-                action <- parseControlSoapXml requestXml
-                -- Deal with the action
-                case action of
-                  Just a -> do
-                    x <- case a of
-                           ContentDirectoryAction_ cda -> handleCDA dt cda objects
-                           ConnectionManagerAction_ cma -> handleCMA cma
-                    putStrLn $ printf "Response:\n\n%s\n\n" x
-                    sendXmlResponse conn (getExtraHeaders ai) x
-                  Nothing -> 
-                      sendErrorResponse conn NotImplemented []
-              Nothing -> do
-                  putStrLn $ printf "Asked about unknown service '%s'" sn
-                  sendErrorResponse conn NotImplemented []
+          logMessage $ printf "Got request for CONTENT for objectId=%s" oid
+          -- Serve the file which the object maps to.
+          case findByObjectId oid objects of
+               Just o ->
+                 serveStaticFile mt fp
+                   where
+                     od = getObjectData o
+                     fp = objectFileName od
+                     mt = objectMimeType od
+               Nothing ->
+                 sendError NotFound
     _ ->
-      -- Mapped to our URL space, but not parseable? 
-      sendErrorResponse conn NotFound []
+      sendError InternalServerError
+
+-- Handle requests for device CONTROL urls.
+serviceControlHandler :: State -> DeviceType -> [String] -> HttpT IO ()
+serviceControlHandler (c,mc,ai,s,objects_) deviceType gs = do
+  objects <- lift $ readIORef objects_      -- Current snapshot of object tree.
+  logMessage $ printf "Got request for CONTROL for service '%s'" $ deviceTypeToString deviceType
+  -- Parse the SOAP request
+  requestXml <- fmap rqBody getRequest
+  logMessage $ printf "Request: %s" requestXml
+  action <- lift $ parseControlSoapXml requestXml
+  logMessage $ printf "Action: %s" $ show action
+  -- Deal with the action
+  case action of
+    Just a -> do
+      xml_ <- case a of
+        ContentDirectoryAction_ cda  -> handleCDA deviceType cda objects
+        ConnectionManagerAction_ cma -> handleCMA cma
+      return ()
+    Nothing ->
+      sendError NotImplemented
   where
-    handleCDA st a objects =
-        generateActionResponseXml c st objects a
+    handleCDA st a objects = do
+      xml <- lift $ generateActionResponseXml c st objects a
+      logMessage $ printf "Response: %s" $ xml
+      sendXml xml
     handleCMA _ =
       -- TODO: This should really be implemented as it is required by
       -- the specification. However, the PS3 doesn't seem to use it at
       -- all so I don't have any way to test an implementation anyway.
-      error "Not implemented"
+      sendError NotImplemented
 
 
+-- Last resort handler.
+fallbackHandler :: HttpT IO ()
+fallbackHandler = do
+  r <- getRequest
+  logMessage $ printf "Fallback handler got request: %s" $ show r
+  sendError InternalServerError
 
-fallbackHandler :: Socket -> Request String -> [String] -> IO ()
-fallbackHandler conn r gs = do
-    putStrLn "Fallback handler got request:"
-    print r
-    sendErrorResponse conn InternalServerError []
+-- Send an empty error response.
+sendError :: Monad m => HttpResponseCode -> HttpT m ()
+sendError c = do
+  setResponseCode c
+  setContentLength $ Just 0
+  addHeader (Header HdrConnection "close")
+
+-- Send generated XML.
+sendXml :: (Monad m, MonadIO m, Functor m) => String -> HttpT m ()
+sendXml xml = do
+  setResponseCode OK
+  setContentLength $ Just $ toEnum $ length xml
+  addHeader (Header HdrConnection "close")
+  addHeader (Header HdrContentType "text/xml")
+  writeToBody $ fromString $ xml
