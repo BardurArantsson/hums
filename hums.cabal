@@ -47,6 +47,7 @@ Other-modules:       Paths_hums
                      HttpExtra
                      RegexExtra
                      Service
+                     Handlers
                      Configuration
                      Soap
                      DirectoryUtils
