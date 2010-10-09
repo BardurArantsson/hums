@@ -147,8 +147,9 @@ scanFile parentObjects objects fp = do
   let lastModified = round' $ toRational $ modificationTime st
   -- Compute file size.
   let sz = (fromIntegral . System.Posix.fileSize) st
-  -- Compute misc. attributes.
-  let _title = map replaceNonAscii $ dropExtension $ takeFileName fp
+  -- Compute object title.
+  let mapExt = if isDirectory st then id else dropExtension
+      _title = map replaceNonAscii $ mapExt $ takeFileName fp
   -- Start by guessing mime type.
   let mimeType = if isDirectory st then
                      "inode/directory"       -- Directories are special.
