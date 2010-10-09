@@ -39,24 +39,24 @@ import Data.Maybe
 
 -}
 
-data Configuration = 
+data Configuration =
     Configuration { localNetIp :: String
                   , httpServerBase :: URI
                   , httpServerPort :: Word16
                   , enableDeviceIcon :: Bool
                   , useDlna :: Bool
                   , dlnaProfileName :: Maybe String -- Only used when useDlna is available.
-                  , rootDirectory :: String 
+                  , rootDirectory :: String
                   }
     deriving (Show)
 
 {-
 
-   Media Server Configuration 
+   Media Server Configuration
 
 -}
 
-data MediaServerConfiguration = MediaServerConfiguration 
+data MediaServerConfiguration = MediaServerConfiguration
     { uuid :: String
     , friendlyName :: String
     , manufacturer :: String
@@ -75,26 +75,26 @@ data MediaServerConfiguration = MediaServerConfiguration
 
 -}
 
-data ApplicationInformation = ApplicationInformation 
+data ApplicationInformation = ApplicationInformation
     { operatingSystemName :: String
     , operatingSystemVersion :: String
     , applicationName :: String
-    , applicationVersion :: String 
+    , applicationVersion :: String
     }
 
 
-getApplicationInformation :: IO ApplicationInformation 
+getApplicationInformation :: IO ApplicationInformation
 getApplicationInformation = do
   systemId <- getSystemID
-  return ApplicationInformation 
-             { operatingSystemName = systemName systemId 
+  return ApplicationInformation
+             { operatingSystemName = systemName systemId
              , operatingSystemVersion = release systemId
              , applicationName = "hums"
              , applicationVersion = "0"
              }
 
 getServerHeaderValue :: ApplicationInformation -> String
-getServerHeaderValue (ApplicationInformation on ov an av) = 
+getServerHeaderValue (ApplicationInformation on ov an av) =
     printf "%s/%s, UPnP/1.0, %s/%s" on ov an av
 
 parseConfiguration :: ConfigParser -> String -> IO Configuration
@@ -104,7 +104,7 @@ parseConfiguration cp0 cfname = do
            ip <- get cf networkSection "listen_ip"
            port <- get cf networkSection "listen_port"
            rootDirectory_ <- get cf defaultSection "root_directory"
-           return Configuration 
+           return Configuration
                       { localNetIp = ip
                       , httpServerPort = port
                       , httpServerBase = fromJust $ parseURI $ printf "http://%s:%d" ip port

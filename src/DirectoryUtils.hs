@@ -27,16 +27,16 @@ import Data.List
 -- Performs a pre-order traversal of a directory.
 -- It calls f a0 a fp for each file/directory, where
 -- a0 is the accumulator as it appeared at the start
--- of iteration of the parent directory, a is the 
--- current value of the accumulator and fp is the 
+-- of iteration of the parent directory, a is the
+-- current value of the accumulator and fp is the
 -- file name of the file/directory being visited.
 walkTree :: a -> (a -> a -> FilePath -> IO a) -> FilePath -> IO a
 walkTree s0 f d = do
   -- FIXME: Need to detect loops!
   -- Get files and directories in directory. If that fails
   -- we just pretend there are none.
-  allNames <- catch 
-              (getDirectoryContents d) 
+  allNames <- catch
+              (getDirectoryContents d)
               (\e -> do
                   putStrLn $ "Error retrieving directory contents: " ++ show e -- Log errors
                   return [])
@@ -46,7 +46,7 @@ walkTree s0 f d = do
   let fullNames = map (combine d) names
   -- Traverse subdirectories and return accumulator.
   foldM traverse s0 fullNames
-  where 
+  where
     traverse s n = do
       isFile <- doesFileExist n
       case isFile of
@@ -54,7 +54,7 @@ walkTree s0 f d = do
         False -> do
           isDirectory <- doesDirectoryExist n
           case isDirectory of
-            True -> do 
+            True -> do
               s' <- f s0 s n
               walkTree s' f n
             False -> do

@@ -33,7 +33,7 @@ mkURIReference s =
       Just u -> u
       Nothing -> error $ "Invalid URI component '" ++ s ++ "'"
 
--- Make sure we have a trailing slash on all path components, 
+-- Make sure we have a trailing slash on all path components,
 -- *except* the last.
 addSlashes :: [String] -> [String]
 addSlashes [] = []
@@ -52,5 +52,5 @@ mkURI ss u =
     mkURI' u $ map mkURIReference $ addSlashes ss
 
 mkURI' :: URI -> [URI] -> URI
-mkURI' = 
+mkURI' =
     foldl (\a r -> fromJust $ r `relativeTo` a)

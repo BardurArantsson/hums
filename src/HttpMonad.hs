@@ -45,10 +45,10 @@ mapStatusCode PartialContent      = ((2,0,6), "Partial Content")
 -- State of the HTTP writer monad.
 data HttpState =
   HttpState { hHeaders :: [Header]
-                  , hHeadersFlushed :: Bool
-                  , hStatusCode :: HttpResponseCode
-                  , hOutput :: ByteString -> IO ()
-                  }
+            , hHeadersFlushed :: Bool
+            , hStatusCode :: HttpResponseCode
+            , hOutput :: ByteString -> IO ()
+            }
 
 type Req = Request String
 

@@ -35,11 +35,11 @@ toWord8Array a =
                             return (x : xs)
           else
               return []
-  
+
 
 -- Convert a storable to a string of hex digits.
 toHexString :: Storable a => a -> IO String
 toHexString a = do
   bytes <- toWord8Array a
-  let s = concatMap (printf "%02x") bytes :: String 
+  let s = concatMap (printf "%02x") bytes :: String
   return s

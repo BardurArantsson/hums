@@ -16,7 +16,7 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 -}
 
-module HttpExtra ( parseRangeHeader 
+module HttpExtra ( parseRangeHeader
                  ) where
 
 import Text.ParserCombinators.Parsec
@@ -24,16 +24,16 @@ import Text.ParserCombinators.Parsec
 parseRange :: GenParser Char a (Maybe Integer, Maybe Integer)
 parseRange =
     choice [parseFullRange,
-            parseEndRange, 
+            parseEndRange,
             parseSingleByteRange]
- 
+
 parseFullRange :: GenParser Char a (Maybe Integer, Maybe Integer)
 parseFullRange = do
   i1 <- parseInteger
   _  <- char '-'
   i2 <- optionMaybe parseInteger
   return (Just i1, i2)
-  
+
 parseEndRange :: GenParser Char a (Maybe Integer, Maybe Integer)
 parseEndRange = do
   _  <- char '-'

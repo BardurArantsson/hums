@@ -19,7 +19,7 @@
 module SimpleServiceDiscoveryProtocol ( sendNotifyForever
                                       , MessageType(..)
                                       )
-    where 
+    where
 
 import Configuration
 import Network.Socket
@@ -36,7 +36,7 @@ data MessageType = UpnpServiceNotification
                  | MediaServerNotification
 
 generateNotifyAlive :: ApplicationInformation -> Configuration -> MediaServerConfiguration -> MessageType -> String
-generateNotifyAlive ai c msc messageType = 
+generateNotifyAlive ai c msc messageType =
     concat [ printf "NOTIFY * HTTP/1.1\r\n"
            , printf "HOST: 239.255.255.250:1900\r\n"
            , printf "CACHE-CONTROL: max-age=180\r\n"
@@ -70,7 +70,7 @@ sendRawMessage c m = do
   return ()
 
 sendNotifyAlive :: ApplicationInformation -> Configuration -> MediaServerConfiguration -> MessageType -> IO ()
-sendNotifyAlive ai c msc = 
+sendNotifyAlive ai c msc =
     sendRawMessage c . generateNotifyAlive ai c msc
 
 sendNotifyAliveAll :: ApplicationInformation -> Configuration -> MediaServerConfiguration -> IO ()

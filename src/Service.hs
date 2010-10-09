@@ -42,18 +42,13 @@ myQuote =        -- TODO: There *must* be a better way to achieve our quoting ne
       f '>' = "&gt;"
       f c = [c]
 
-
-
 sanitizeXmlChars :: String -> String
-sanitizeXmlChars =
-    map f
+sanitizeXmlChars = map f
     where
       f '<' = '_'
       f '>' = '_'
       f '&' = '_'
       f  c  = c
-
-
 
 optSelem :: ArrowXml a => String -> Maybe String -> a n XmlTree
 optSelem n Nothing = cmt $ printf " %s omitted " n

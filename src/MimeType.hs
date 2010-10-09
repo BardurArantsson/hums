@@ -16,7 +16,7 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 -}
 
-module MimeType ( guessMimeType 
+module MimeType ( guessMimeType
                 ) where
 
 import System.FilePath
@@ -27,7 +27,7 @@ import System.FilePath
 guessMimeType :: FilePath -> String
 guessMimeType fp =
     mimeType $ takeExtension fp
-    where 
+    where
       mimeType ".xml"  = "text/xml"
       mimeType ".avi"  = "video/divx"   -- PlayStation 3 oddity ('x-msvideo' is standard)
       mimeType ".mp3"  = "audio/mpeg"

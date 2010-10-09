@@ -59,7 +59,7 @@ mimeTypeToObjectType _ = Nothing
 
 -- An Objects is an abstract data type containing a set of
 -- objects.
-data Objects = Objects 
+data Objects = Objects
     { mapIdToObject :: Map ObjectId Object
     , mapParentToChildren :: Map ObjectId [ObjectId]
     , systemUpdateId :: Int64
@@ -67,7 +67,7 @@ data Objects = Objects
                deriving (Show)
 
 -- Object data which applies for all objects.
-data ObjectData = MkObjectData 
+data ObjectData = MkObjectData
     { objectParentId :: ObjectId                -- Object ID of parent object.
     , objectTitle :: String                     -- Title of the object.
     , objectFileName :: FilePath                -- Physical file.
@@ -83,7 +83,7 @@ data ObjectType = Container
                 | ItemMusicTrack
                 | ItemVideoMovie
               deriving (Show)
-                
+
 -- We can serve different types of objects.
 type Object = (ObjectType, ObjectData)
 
@@ -136,9 +136,9 @@ scanFile parentObjects objects fp = do
              [] -> rootObjectId
              ((oid,_):_) -> oid
   -- Compute object id for the directory entry.
-  -- FIXME: Should handle 'file gone missing' -- simply don't prepend an 
+  -- FIXME: Should handle 'file gone missing' -- simply don't prepend an
   -- object in that case.
-  st <- getFileStatus fp 
+  st <- getFileStatus fp
   deviceId <- toHexString $ deviceID st
   fileId <- toHexString $ fileID st
   let oid = printf "%s,%s" deviceId fileId
@@ -162,7 +162,7 @@ scanFile parentObjects objects fp = do
     round' :: Rational -> Int64          -- Dummy to avoid warning
     round' = round
 
-  
+
 -- Function for building the Object tree structure.
 scanDirectory :: FilePath -> IO Objects
 scanDirectory d = do
@@ -174,15 +174,15 @@ scanDirectory d = do
 
   let getModificationTime = objectLastModified . getObjectData . snd
 
-  return Objects 
+  return Objects
              { mapIdToObject = Map.fromList o'
              , mapParentToChildren = mapParentToChildrenX
              , systemUpdateId = maximum $ map getModificationTime o'
              }
-  where 
+  where
     -- The root object is fixed.
-    rootObject = 
-        (rootObjectId,    
+    rootObject =
+        (rootObjectId,
            (Container, MkObjectData { objectParentId = rootObjectParentId
                                     , objectTitle = "root"
                                     , objectFileName = "root"
