@@ -31,6 +31,7 @@ module Object ( Objects( systemUpdateId )
               ) where
 
 import Action
+import Data.Char (isAscii)
 import Data.Map (Map)
 import qualified Data.Map as Map
 import Data.List (isPrefixOf)
@@ -147,7 +148,7 @@ scanFile parentObjects objects fp = do
   -- Compute file size.
   let sz = (fromIntegral . System.Posix.fileSize) st
   -- Compute misc. attributes.
-  let _title = dropExtension $ takeFileName fp
+  let _title = map replaceNonAscii $ dropExtension $ takeFileName fp
   -- Start by guessing mime type.
   let mimeType = if isDirectory st then
                      "inode/directory"       -- Directories are special.
@@ -161,7 +162,10 @@ scanFile parentObjects objects fp = do
   where
     round' :: Rational -> Int64          -- Dummy to avoid warning
     round' = round
-
+    -- Replace non-ASCII characters to work around encoding issues.
+    replaceNonAscii :: Char -> Char
+    replaceNonAscii c | isAscii c = c
+    replaceNonAscii _             = '?'
 
 -- Function for building the Object tree structure.
 scanDirectory :: FilePath -> IO Objects
