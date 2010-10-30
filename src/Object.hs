@@ -32,8 +32,8 @@ module Object ( Objects( systemUpdateId )
 
 import Action
 import Data.Char (isAscii)
-import Data.Map (Map)
-import qualified Data.Map as Map
+import Data.HashMap (HashMap)
+import qualified Data.HashMap as H
 import Data.List (isPrefixOf)
 import DirectoryUtils
 import System.FilePath
@@ -61,8 +61,8 @@ mimeTypeToObjectType _ = Nothing
 -- An Objects is an abstract data type containing a set of
 -- objects.
 data Objects = Objects
-    { mapIdToObject :: Map ObjectId Object
-    , mapParentToChildren :: Map ObjectId [ObjectId]
+    { mapIdToObject :: HashMap ObjectId Object
+    , mapParentToChildren :: HashMap ObjectId [ObjectId]
     , systemUpdateId :: Int64
     }
                deriving (Show)
@@ -109,7 +109,7 @@ getObjectData = snd
 -- Get the children object of a given object.
 getChildren :: Objects -> ObjectId -> [(ObjectId,Object)]
 getChildren os pid =
-    case Map.lookup pid $ mapParentToChildren os of
+    case H.lookup pid $ mapParentToChildren os of
       Just cs -> map (\oid -> (oid, findExistingByObjectId oid os)) cs
       Nothing -> []
 
@@ -120,7 +120,7 @@ getNumberOfChildren os =
 
 -- Find object by object ID.
 findByObjectId :: ObjectId -> Objects -> Maybe Object
-findByObjectId oid = Map.lookup oid . mapIdToObject
+findByObjectId oid = H.lookup oid . mapIdToObject
 
 -- Find object which is known to exist by object ID.
 findExistingByObjectId :: ObjectId -> Objects -> Object
@@ -174,15 +174,11 @@ scanDirectory d = do
   objects <- walkTree [] scanFile d
   -- Add the special top-level root item.
   let o' = (rootObject : objects)
-  -- Construct a map from parents to children.
-  let mapParentToChildrenX = foldl p2c Map.empty o'
-
-  let getModificationTime = objectLastModified . getObjectData . snd
-
+  -- Construct the objects map.
   return Objects
-             { mapIdToObject = Map.fromList o'
-             , mapParentToChildren = mapParentToChildrenX
-             , systemUpdateId = maximum $ map getModificationTime o'
+             { mapIdToObject = H.fromList o'
+             , mapParentToChildren = foldl p2c H.empty o'
+             , systemUpdateId = maximum $ map (objectLastModified . getObjectData . snd) o'
              }
   where
     -- The root object is fixed.
@@ -196,8 +192,8 @@ scanDirectory d = do
                                     , objectMimeType = "inode/directory" }))
 
     p2c acc (oid, o) =
-        Map.alter (\x -> case x of
-                           Nothing -> Just [oid]
-                           Just cs -> Just (oid:cs)) pid acc
+        H.alter (\x -> case x of
+                    Nothing -> Just [oid]
+                    Just cs -> Just (oid:cs)) pid acc
         where
           pid = objectParentId $ getObjectData o
