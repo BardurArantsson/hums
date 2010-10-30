@@ -22,7 +22,8 @@ import Network.HTTP.Headers (Header(..), HeaderName(..))
 import Network.StreamSocket()
 import Network.URI (uriPath)
 import Data.ByteString (ByteString)
-import Data.ByteString.UTF8 (fromString)
+import qualified Data.Text as T
+import Data.Text.Encoding (encodeUtf8)
 import SendFile (sendFile)
 import Text.Printf (printf)
 import Text.Regex (matchRegex, mkRegex)
@@ -97,7 +98,7 @@ flushHeaders = HttpT $ lift $ do
                                     , rspHeaders = headers
                                     , rspBody = "" }
     -- Output the headers.
-    lift $ liftIO $ output $ fromString sResponse
+    lift $ liftIO $ output $ encodeUtf8 $ T.pack sResponse
     -- We've flushed the headers.
     modify (\s -> s { hHeadersFlushed = True })
 

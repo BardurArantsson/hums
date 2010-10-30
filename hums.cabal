@@ -30,7 +30,7 @@ Build-Depends: base == 4.*
              , transformers == 0.2.*
              , network-bytestring >= 0.1.2.1 && <0.2
              , hashmap == 1.1.*
-             , utf8-string == 0.3.*
+             , text == 0.10.*
 data-dir:            data
 data-files:          hums.cfg 
                      www/images/hums.jpg

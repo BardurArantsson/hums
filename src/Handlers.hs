@@ -39,9 +39,10 @@ import HttpExtra
 import System.FilePath
 import Data.Maybe (isJust)
 import Data.IORef
+import qualified Data.Text as T
+import Data.Text.Encoding (encodeUtf8)
 import HttpMonad
 import Control.Monad.Trans.Class (lift)
-import Data.ByteString.UTF8 (fromString)
 import Control.Monad.IO.Class (MonadIO)
 
 type State = (Configuration, MediaServerConfiguration, ApplicationInformation, [DeviceType], IORef Objects)
@@ -218,4 +219,4 @@ sendXml xml = do
   setContentLength $ Just $ toEnum $ length xml
   addHeader (Header HdrConnection "close")
   addHeader (Header HdrContentType "text/xml")
-  writeToBody $ fromString $ xml
+  writeToBody $ encodeUtf8 $ T.pack $ xml
