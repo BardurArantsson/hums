@@ -37,10 +37,10 @@ import MimeType
 import Object
 import HttpExtra
 import System.FilePath
+import Data.ByteString.Lazy (ByteString)
+import qualified Data.ByteString.Lazy as L
 import Data.Maybe (isJust)
 import Data.IORef
-import qualified Data.Text as T
-import Data.Text.Encoding (encodeUtf8)
 import HttpMonad
 import Control.Monad.Trans.Class (lift)
 import Control.Monad.IO.Class (MonadIO)
@@ -127,8 +127,7 @@ slashDotDot = mkRegex "/\\.\\."
 rootDescriptionHandler :: State -> [String] -> HttpT IO ()
 rootDescriptionHandler (c,mc,ai,s,_) gs = do
   logMessage "Got request for root description."
-  xml <- lift $ generateDescriptionXml c mc s
-  sendXml xml
+  sendXml $ generateDescriptionXml c mc s
   logMessage "Sent root description."
 
 -- Handle static files.
@@ -188,9 +187,7 @@ serviceControlHandler (c,mc,ai,s,objects_) deviceType gs = do
       sendError NotImplemented
   where
     handleCDA st a objects = do
-      xml <- lift $ generateActionResponseXml c st objects a
-      logMessage $ printf "Response: %s" $ xml
-      sendXml xml
+      sendXml $ generateActionResponseXml c st objects a
     handleCMA _ =
       -- TODO: This should really be implemented as it is required by
       -- the specification. However, the PS3 doesn't seem to use it at
@@ -213,10 +210,12 @@ sendError c = do
   addHeader (Header HdrConnection "close")
 
 -- Send generated XML.
-sendXml :: (Monad m, MonadIO m, Functor m) => String -> HttpT m ()
+sendXml :: (MonadIO m, Functor m) => ByteString -> HttpT m ()
 sendXml xml = do
   setResponseCode OK
-  setContentLength $ Just $ toEnum $ length xml
+  setContentLength $ Just $ toInteger $ L.length xml
   addHeader (Header HdrConnection "close")
   addHeader (Header HdrContentType "text/xml")
-  writeToBody $ encodeUtf8 $ T.pack $ xml
+  logMessage $ "Sending XML:"
+  logDataLBS xml
+  writeToBody xml

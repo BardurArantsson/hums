@@ -23,6 +23,7 @@ module HttpMonad ( HttpT
                  , setContentLength
                  , writeToBody
                  , writeFileToBody
+                 , logDataLBS
                  , logMessage
                  , getRequest
                  , ifRegex
@@ -39,6 +40,8 @@ import Network.HTTP.Headers (Header(..), HeaderName(..))
 import Network.StreamSocket()
 import Network.URI (uriPath)
 import Data.ByteString (ByteString)
+import qualified Data.ByteString as S
+import qualified Data.ByteString.Lazy as L
 import qualified Data.Text as T
 import Data.Text.Encoding (encodeUtf8)
 import SendFile (sendFile)
@@ -125,11 +128,11 @@ setResponseCode c = HttpT $ lift $ do
   modify $ \st -> st { hStatusCode = c }
 
 -- Write to body.
-writeToBody :: (Functor m, MonadIO m, Monad m) => ByteString -> HttpT m ()
+writeToBody :: (Functor m, MonadIO m, Monad m) => L.ByteString -> HttpT m ()
 writeToBody buf = HttpT $ do
   output <- lift $ hOutput <$> get
   unHttp $ flushHeaders
-  lift $ liftIO $ output buf
+  lift $ liftIO $ output $ S.concat $ L.toChunks buf     -- FIXME: Maybe change "output" to use lazy?
 
 -- Write the contents of a file to body.
 writeFileToBody :: (Functor m, MonadIO m, Monad m) => FilePath -> Integer -> Integer -> HttpT m ()
@@ -141,6 +144,9 @@ writeFileToBody buf offset count = HttpT $ do
 -- Logging.
 logMessage :: (Monad m, MonadIO m) => String -> HttpT m ()
 logMessage s = HttpT $ liftIO $ putStrLn s
+
+logDataLBS :: (Monad m, MonadIO m) => L.ByteString -> HttpT m ()
+logDataLBS s = HttpT $ liftIO $ L.putStrLn s
 
 -- Get request.
 getRequest :: (Functor m, Monad m) => HttpT m (Request String)

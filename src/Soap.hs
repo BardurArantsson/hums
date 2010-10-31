@@ -151,5 +151,4 @@ parseControlSoapXml xml = do
       conf :: SysConfigList
       conf = [ withValidate no
              , withCheckNamespaces False
-             , withTrace 3
              ]

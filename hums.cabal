@@ -31,6 +31,7 @@ Build-Depends: base == 4.*
              , network-bytestring >= 0.1.2.1 && <0.2
              , hashmap == 1.1.*
              , text == 0.10.*
+             , HaXml == 1.20.*
 data-dir:            data
 data-files:          hums.cfg 
                      www/images/hums.jpg

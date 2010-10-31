@@ -22,8 +22,9 @@ module Service ( generateDescriptionXml
                , deviceTypeToString
                ) where
 
-import Text.XML.HXT.Core
 import Text.Printf
+import Text.XML.HaXml.Types
+import Text.XML.HaXml.ByteStringPP
 import Configuration
 import Action
 import Data.Maybe (mapMaybe)
@@ -33,14 +34,18 @@ import Data.Bits
 import Data.Int
 import MimeType
 import URIExtra
+import Data.Text.Lazy (Text)
+import qualified Data.Text.Lazy as T
+import Data.Text.Lazy.Encoding (decodeUtf8)
+import Data.ByteString.Lazy (ByteString)
 
-myQuote :: String -> String
+myQuote :: Text -> Text
 myQuote =        -- TODO: There *must* be a better way to achieve our quoting needs.
-    concatMap f
+    T.concatMap f
     where
-      f '<' = "&lt;"
-      f '>' = "&gt;"
-      f c = [c]
+      f '<' = T.pack "&lt;"
+      f '>' = T.pack "&gt;"
+      f c   = T.singleton c
 
 sanitizeXmlChars :: String -> String
 sanitizeXmlChars = map f
@@ -50,10 +55,44 @@ sanitizeXmlChars = map f
       f '&' = '_'
       f  c  = c
 
-optSelem :: ArrowXml a => String -> Maybe String -> a n XmlTree
-optSelem n Nothing = cmt $ printf " %s omitted " n
-optSelem n (Just x) = selem n [txt x]
+--
+-- Helpers for constructing XML.
+--
+comment :: String -> Content ()
+comment c = CMisc (Comment c) ()
 
+simpleElement :: Name -> [Content ()] -> Content ()
+simpleElement n c = CElem (Elem n [] c) ()
+
+textElement :: Name -> String -> Content ()
+textElement n t = optTextElement n $ Just t
+
+emptyElement :: Name -> Content ()
+emptyElement n = elementToContent $ Elem n [] []
+
+text :: String -> Content ()
+text t = CString False t ()
+
+optTextElement :: String -> Maybe String -> Content ()
+optTextElement n Nothing = comment $ printf " %s omitted" n
+optTextElement n (Just t) = elementToContent $ Elem n [] [text t]
+
+attribute :: Name -> String -> Attribute
+attribute n v = (n, AttValue [Left v])
+
+mkDocument :: Element () -> Document ()
+mkDocument rootElement =
+  (Document _prolog emptyST rootElement [])
+    where
+      _prolog = Prolog xmlDecl [] Nothing []
+      xmlDecl = Just $ XMLDecl xmlVers encDecl Nothing
+      encDecl = Just $ EncodingDecl "utf-8"
+      xmlVers = "1.0"
+
+elementToContent :: Element () -> Content ()
+elementToContent e = CElem e ()
+
+-- Device types.
 data DeviceType = MediaServer
                 | ContentDirectoryDevice
                 | ConnectionManagerDevice
@@ -63,220 +102,202 @@ deviceTypeToString ContentDirectoryDevice = "ContentDirectory"
 deviceTypeToString ConnectionManagerDevice = "ConnectionManager"
 deviceTypeToString MediaServer = "MediaServer"
 
-serviceNs :: ArrowXml a => String -> DeviceType -> a XmlTree XmlTree
-serviceNs prefix st =
-    sattr an av
-    where
-      an = printf "xmlns:%s" prefix
-      av = printf "urn:schemas-upnp-org:service:%s:1" $ deviceTypeToString st
+serviceNs :: String -> DeviceType -> Attribute
+serviceNs prefix st = attribute an av
+  where
+    an = printf "xmlns:%s" prefix
+    av = printf "urn:schemas-upnp-org:service:%s:1" $ deviceTypeToString st
 
 serviceNs' :: DeviceType -> String
 serviceNs' = printf "urn:schemas-upnp-org:service:%s:1" . deviceTypeToString
 
 -- Generate the icon list.
-generateIconList :: ArrowXml a => Bool -> a XmlTree XmlTree
-generateIconList False = cmt " omitted device icon list "
+generateIconList :: Bool -> Content ()
+generateIconList False = comment " omitted device icon list "
 generateIconList True =
-    selem "iconList"
-              [ selem "icon"
-                [ selem "mimetype" [ txt $ guessMimeType imageUrl ]
-                , selem "width"    [ txt "240" ]
-                , selem "height"   [ txt "240" ]
-                , selem "url"      [ txt imageUrl ]
-                ]
-              ]
+  (simpleElement "iconList"
+   [ simpleElement "icon"
+     [ textElement "mimetype" $ guessMimeType imageUrl
+     , textElement "width"      "240"
+     , textElement "height"     "240"
+     , textElement "url"        imageUrl
+     ]
+   ])
     where
       imageUrl = "/static/images/hums.jpg"
 
-generateServiceList :: ArrowXml a => [DeviceType] -> a XmlTree XmlTree
+generateServiceList :: [DeviceType] -> Content ()
 generateServiceList services =
-    selem "serviceList" $ map generateService services
+  simpleElement "serviceList" $ map generateService services
     where
       generateService service =
-          selem "service"
-                    [ selem "serviceType" [txt $ serviceNs' service]
-                    , selem "serviceId" [txt $ printf "urn:upnp-org:serviceId:%s" dt]
-                    , selem "SCPDURL" [txt $ printf "/static/services/%s/description.xml" dt]
-                    , selem "controlURL" [txt $ printf "/dynamic/services/%s/control/" dt]
-                    , selem "eventSubURL" [txt $ printf "/dynamic/services/%s/event/" dt]
-                    ]
+        ( simpleElement "service"
+          [ textElement "serviceType" $ serviceNs' service
+          , textElement "serviceId"   $ printf "urn:upnp-org:serviceId:%s" dt
+          , textElement "SCPDURL"     $ printf "/static/services/%s/description.xml" dt
+          , textElement "controlURL"  $ printf "/dynamic/services/%s/control/" dt
+          , textElement "eventSubURL" $ printf "/dynamic/services/%s/event/" dt
+          ] )
           where dt = deviceTypeToString service
 
-generateDescription :: ArrowXml a => Configuration -> MediaServerConfiguration -> [DeviceType] -> a XmlTree XmlTree
+generateDescription :: Configuration -> MediaServerConfiguration -> [DeviceType] -> Document ()
 generateDescription c mc services =
-    root []
-     [ mkelem "root" [sattr "xmlns" "urn:schemas-upnp-org:device-1-0"]
-       [ selem "specVersion"
-         [ selem "major" [ txt "1" ]
-         , selem "minor" [ txt "0" ]
-         ]
-       , selem "URLBase" [ txt $ show $ httpServerBase c ]
-       , selem "device"
-         [ selem "UDN" [ txt $ printf "uuid:%s" $ uuid mc ]
-         , selem "friendlyName" [ txt $ friendlyName mc ]
-         , selem "manufacturer" [ txt $ manufacturer mc ]
-         , selem "manufacturerURL" [ txt $ manufacturerUrl mc ]
-         , optSelem "modelDescription" $ modelDescription mc
-         , selem "modelName" [ txt $ modelName mc ]
-         , selem "modelNumber" [ txt $ modelNumber mc ]
-         , selem "modelURL" [ txt $ modelUrl mc ]
-         , optSelem "serialNumber" $ serialNumber mc
-         , selem "deviceType" [ txt $ printf "urn:schemas-upnp-org:device:%s:1" deviceType ]
-         , optSelem "UPC" $ upc mc
---         , optSelemNs "dlna:X_DNLADOC" [sattr "xmlns" "urn:schemas-dlna-org:device-1-0"] $ dlna
-         , generateIconList $ enableDeviceIcon c
-         , generateServiceList services
-         , selem "presentationURL" [ txt presentationUrl ]
-         ]
-       ]
-     ]
+  (mkDocument
+   (Elem "root" [attribute "xmlns" "urn:schemas-upnp-org:device-1-0"]
+    [ simpleElement "specVersion"
+      [ textElement "major" "1"
+      , textElement "minor" "0"
+      ]
+    , textElement "URLBase" $ show $ httpServerBase c
+    , simpleElement "device"
+      [ textElement "UDN" $ printf "uuid:%s" $ uuid mc
+      , textElement "friendlyName" $ friendlyName mc
+      , textElement "manufacturer" $ manufacturer mc
+      , textElement "manufacturerURL" $ manufacturerUrl mc
+      , optTextElement "modelDescription" $ modelDescription mc
+      , textElement "modelName" $ modelName mc
+      , textElement "modelNumber" $ modelNumber mc
+      , textElement "modelURL" $ modelUrl mc
+      , optTextElement "serialNumber" $ serialNumber mc
+      , textElement "deviceType" $ printf "urn:schemas-upnp-org:device:%s:1" deviceType
+      , optTextElement "UPC" $ upc mc
+--    , optSelemNs "dlna:X_DNLADOC" [sattr "xmlns" "urn:schemas-dlna-org:device-1-0"] $ dlna
+      , generateIconList $ enableDeviceIcon c
+      , generateServiceList services
+      , textElement "presentationURL" "index.html"
+      ]
+    ]))
     where
       deviceType = deviceTypeToString MediaServer
 --      dlna = if useDlna mc then (Just "DMS-1.00") else Nothing
-      presentationUrl = "index.html"
 
--- Transform an XmlTree to a string.
-generateXml :: SysConfigList -> IOSLA (XIOState ()) XmlTree XmlTree -> IO String
-generateXml conf a = do
-  xml <- runX (a >>> writeDocumentToString (withOutputEncoding utf8 : conf))
-  return $ concat xml
-
-generateDescriptionXml :: Configuration -> MediaServerConfiguration -> [DeviceType] -> IO String
-generateDescriptionXml c mc =
-  generateXml [] . generateDescription c mc
-
-
-generateResponseXml :: [IOSLA (XIOState ()) XmlTree XmlTree] -> IO String
-generateResponseXml =
-  generateXml [ withOutputPLAIN ] . generateSoapEnvelope
-
-generateBrowseResponseXml :: Configuration -> DeviceType -> Objects -> BrowseAction -> IO String
-
-generateBrowseResponseXml cfg st os (BrowseMetadata bps) = do
-  didlXml <- fmap myQuote $ generateXml [] didl
-  let body = [ mkelem "u:BrowseResponse" [ serviceNs "u" st ]
-               [ selem "Result" [ txt didlXml ]
-               , selem "NumberReturned" [ txt "1" ]  -- CD/§2.7.4.2
-               , selem "TotalMatches" [ txt "1" ]    -- CD/§2.7.4.2
-               , selem "UpdateID" [ txt $ printf "%d" $ systemUpdateId os ]
-               ]
-             ]
-  generateResponseXml body
+mkBrowseResponse :: Integral a => Configuration -> DeviceType -> Objects -> a -> a -> Element () -> Element ()
+mkBrowseResponse cfg st os numberReturned totalMatches didl =
+  ( Elem "u:BrowseResponse" [ serviceNs "u" st ]
+    [ textElement "Result" didlXml
+    , textElement "NumberReturned" $ show numberReturned   -- CD/§2.7.4.2
+    , textElement "TotalMatches"   $ show totalMatches     -- CD/§2.7.4.2
+    , textElement "UpdateID" $ printf "%d" $ systemUpdateId os
+    ] )
   where
-    didl = mkDidl [generateObjectElement cfg os (oid,o)]
-    oid = objectId bps
-    o = findExistingByObjectId oid os -- TODO: Might handle non-existing objects better.
+    didlXml = T.unpack $ myQuote $ decodeUtf8 $ element $ didl
 
+generateBrowseResponse :: Configuration -> DeviceType -> Objects -> BrowseAction -> Element ()
+generateBrowseResponse cfg st os (BrowseMetadata bps) =
+  mkBrowseResponse cfg st os n n didl
+    where
+      n = 1 :: Int
+      didl = mkDidl [generateObjectElement cfg os (oid,o)]
+      oid = objectId bps
+      o = findExistingByObjectId oid os -- TODO: Might handle non-existing objects better.
 
-generateBrowseResponseXml cfg st os (BrowseDirectChildren bps) = do
-  didlXml <- fmap myQuote $ generateXml [] didl
-  let body = [ mkelem "u:BrowseResponse" [ serviceNs "u" st ]
-               [ selem "Result" [ txt didlXml ]
-               , selem "NumberReturned" [ txt numberReturned ]
-               , selem "TotalMatches" [ txt totalMatches ]
-               , selem "UpdateID" [ txt $ printf "%d" $ systemUpdateId os ]
-               ]
-             ]
-  generateResponseXml body
+generateBrowseResponse cfg st os (BrowseDirectChildren bps) =
+  mkBrowseResponse cfg st os numberReturned totalMatches didl
   where
     oid = objectId bps
     si = startingIndex bps
     rc = requestedCount bps
-    totalMatches = show $ getNumberOfChildren os oid     --  CD/§2.7.4.2
-    numberReturned = show $ length chosenChildren
+    totalMatches = getNumberOfChildren os oid     --  CD/§2.7.4.2
+    numberReturned = length chosenChildren
     slicer = if rc<=0 then id else slice si rc -- CD/§2.7.4.2
     chosenChildren = slicer $ Object.getChildren os oid
     didl = mkDidl $ map (generateObjectElement cfg os) chosenChildren
 
 
 
-generateActionResponseXml :: Configuration -> DeviceType -> Objects -> ContentDirectoryAction -> IO String
+generateDescriptionXml :: Configuration -> MediaServerConfiguration -> [DeviceType] -> ByteString
+generateDescriptionXml c mc = document . generateDescription c mc
+
+generateResponseXml :: Element () -> ByteString
+generateResponseXml d = document $ generateSoapEnvelope d
+
+generateBrowseResponseXml :: Configuration -> DeviceType -> Objects -> BrowseAction -> ByteString
+generateBrowseResponseXml cfg st os action = generateResponseXml $ generateBrowseResponse cfg st os action
+
+generateActionResponseXml :: Configuration -> DeviceType -> Objects -> ContentDirectoryAction -> ByteString
 
 generateActionResponseXml _ st os ContentDirectoryGetSystemUpdateId =
-  generateXml [] $ generateSoapEnvelope body
+  generateResponseXml body
   where
-    body = [ mkelem "u:GetSystemUpdateIDResponse" [ serviceNs "u" st ]
-             [ selem "Id" [ txt $ show $ systemUpdateId os ] ] ]
+    body = ( Elem "u:GetSystemUpdateIDResponse" [ serviceNs "u" st ]
+             [ textElement "Id" $ show $ systemUpdateId os ] )
 
 generateActionResponseXml cfg st os (ContentDirectoryBrowse ba) =
   generateBrowseResponseXml cfg st os ba
 
 generateActionResponseXml _ st _ ContentDirectoryGetSearchCapabilities =
-  generateXml [] $ generateSoapEnvelope body
+  generateResponseXml body
   where
-    body = [ mkelem "u:GetSearchCapabilitiesResponse" [ serviceNs "u" st ]
-             [ selem "SearchCaps" [ txt "" ] ]   -- No search capabilities (CD/§2.5.18)
-           ]
+    body = ( Elem "u:GetSearchCapabilitiesResponse" [ serviceNs "u" st ]
+             [ emptyElement "SearchCaps" ]   -- No search capabilities (CD/§2.5.18)
+           )
 
 generateActionResponseXml _ st _ ContentDirectoryGetSortCapabilities =
-  generateXml [] $ generateSoapEnvelope body
+  generateResponseXml body
   where
-    body = [ mkelem "u:GetSortCapabilitiesResponse" [ serviceNs "u" st ]
-             [ selem "SortCaps" [ txt "" ] ]   -- No sorting capabilities (CD/§2.5.19)
-           ]
+    body = ( Elem "u:GetSortCapabilitiesResponse" [ serviceNs "u" st ]
+             [ emptyElement "SortCaps" ]   -- No sorting capabilities (CD/§2.5.19)
+           )
 
-generateSoapEnvelope :: ArrowXml a => [a XmlTree XmlTree] -> a XmlTree XmlTree
-generateSoapEnvelope b =
-    root []
-      [ mkelem "s:Envelope" [ soapNs, soapEncodingStyle ]
-        [ selem "s:Body" b ]
-      ]
+generateSoapEnvelope :: Element () -> Document ()
+generateSoapEnvelope bodyE =
+  ( mkDocument
+    ( Elem "s:Envelope" [ soapNs, soapEncodingStyle ]
+      [ simpleElement "s:Body" [elementToContent bodyE] ]
+    )
+  )
     where
-      soapNs = sattr "xmlns:s" $ printf "%s/envelope/" urlPrefix
-      soapEncodingStyle = sattr "s:encodingStyle" $ printf "%s/encoding/" urlPrefix
+      soapNs = attribute "xmlns:s" $ printf "%s/envelope/" urlPrefix
+      soapEncodingStyle = attribute "s:encodingStyle" $ printf "%s/encoding/" urlPrefix
       urlPrefix = "http://schemas.xmlsoap.org/soap"
 
 
-generateObjectElement :: ArrowXml a => Configuration -> Objects -> (ObjectId, Object) -> a XmlTree XmlTree
+generateObjectElement :: Configuration -> Objects -> (ObjectId, Object) -> Element ()
 generateObjectElement cfg objects (oid, o) =
-    mkelem en (as ++ eas)
-     ([ selem "dc:title" [ txt $ sanitizeXmlChars $ objectTitle od ]
-      , selem "upnp:class" [ txt $ getObjectClassName o ]
-      ] ++ ee)
+    ( Elem en (as ++ eas)
+      ( [ textElement "dc:title" $ sanitizeXmlChars $ objectTitle od
+        , textElement "upnp:class" $ getObjectClassName o
+        ] ++ (map elementToContent ee)
+      )
+    )
     where
       od = getObjectData o
       en = getObjectElementName o
       ee = generateExtraElements cfg (oid,o)
-      as = [ sattr "id" oid
-           , sattr "parentID" $ objectParentId od
+      as = [ attribute "id" oid
+           , attribute "parentID" $ objectParentId od
            ]
       eas = generateExtraAttributes objects (oid,o)
 
 
 -- Generate any attributes required for any given object.
 -- (Apart from the attributes of the 'object' class itself.)
-generateExtraAttributes :: ArrowXml a => Objects -> (ObjectId, Object) -> [a XmlTree XmlTree]
+generateExtraAttributes :: Objects -> (ObjectId, Object) -> [Attribute]
 generateExtraAttributes objects (oid, (Container,_)) = genContainerAttributes objects oid
 generateExtraAttributes objects (oid, (ContainerStorageFolder,_)) = genContainerAttributes objects oid
 generateExtraAttributes _ (_, (ItemMusicTrack,_)) = genItemAttributes
 generateExtraAttributes _ (_, (ItemVideoMovie,_)) = genItemAttributes
 
 -- Generate content URL
-generateContentUrl :: ArrowXml a => Configuration -> ObjectId -> a XmlTree XmlTree
-generateContentUrl cfg oid =
-    txt $ show $ mkURI ["content", oid] $ httpServerBase cfg
 
 -- Generate any extra elements for any given object.
-generateExtraElements :: ArrowXml a => Configuration -> (ObjectId, Object) -> [a XmlTree XmlTree]
+generateExtraElements :: Configuration -> (ObjectId, Object) -> [Element ()]
 generateExtraElements _ (oid, (Container,_)) = []
 generateExtraElements _ (oid, (ContainerStorageFolder,_)) = []
-generateExtraElements cfg (oid, (ItemMusicTrack,d)) =
-    [ mkelem "res" [ sattr "protocolInfo" protocolInfo
-                   , sattr "size" $ printf "%d" $ objectFileSize d ] -- TODO: should be disabled by Transcoding flag!
-      [ generateContentUrl cfg oid ]
-    ]
-    where
-      mimeType = objectMimeType d
-      protocolInfo = generateProtocolInfo cfg False mimeType Nothing  -- TODO: profileId
+generateExtraElements cfg (oid, (ItemMusicTrack,d)) = generateExtraElementsForFile cfg oid d
+generateExtraElements cfg (oid, (ItemVideoMovie,d)) = generateExtraElementsForFile cfg oid d
 
-generateExtraElements cfg (oid, (ItemVideoMovie,d)) =
-    [ mkelem "res" [ sattr "protocolInfo" protocolInfo
-                   , sattr "size" $ printf "%d" $ objectFileSize d ] -- TODO: should be disabled by Transcoding flag!
-      [ generateContentUrl cfg oid ]
-    ]
+generateExtraElementsForFile :: Configuration -> ObjectId -> ObjectData -> [Element ()]
+generateExtraElementsForFile cfg oid d =
+  [ Elem "res"
+    [ attribute "protocolInfo" protocolInfo
+    , attribute "size" $ printf "%d" $ objectFileSize d ] -- TODO: should be disabled by Transcoding flag!
+    [ contentUrl ]
+  ]
     where
       mimeType = objectMimeType d
       protocolInfo = generateProtocolInfo cfg False mimeType Nothing  -- TODO: profileId
+      contentUrl = text $ show $ mkURI ["content", oid] $ httpServerBase cfg
 
 mapMaybe1 :: (a -> b) -> Maybe a -> Maybe b
 mapMaybe1 f Nothing  = Nothing
@@ -326,29 +347,26 @@ generateProtocolInfo cfg transcode mimeType profileId =
 
 
 -- Gnerate extra attributes for containers.
-genContainerAttributes :: ArrowXml a => Objects -> ObjectId -> [a XmlTree XmlTree]
+genContainerAttributes :: Objects -> ObjectId -> [Attribute]
 genContainerAttributes objects oid =
-    [ sattr "searchable" "0"
-    , sattr "restricted" "0"
-    , sattr "childCount" $ show $ getNumberOfChildren objects oid
+    [ attribute "searchable" "0"
+    , attribute "restricted" "0"
+    , attribute "childCount" $ show $ getNumberOfChildren objects oid
     ]
 
 -- Generate extra attributes for items.
-genItemAttributes :: ArrowXml a => [a XmlTree XmlTree]
+genItemAttributes :: [Attribute]
 genItemAttributes = []
 
 -- Create the DIDL result object.
-mkDidl :: ArrowXml a => [a XmlTree XmlTree] -> a XmlTree XmlTree
+mkDidl :: [Element ()] -> Element ()
 mkDidl es =
-    selem "dummy"    -- Not using 'root' means we avoid the XML declaration
-              [ mkelem "DIDL-Lite" [ sattr "xmlns:dc" dcNs
-                                   , sattr "xmlns:upnp" upnpNs
-                                   , sattr "xmlns" ns ]
-                es ]
-    where
-      dcNs = "http://purl.org/dc/elements/1.1/"
-      upnpNs = "urn:schemas-upnp-org:metadata-1-0/upnp/"
-      ns = "urn:schemas-upnp-org:metadata-1-0/DIDL-Lite/"
+  ( Elem "DIDL-Lite"
+    [ attribute "xmlns:dc"   "http://purl.org/dc/elements/1.1/"
+    , attribute "xmlns:upnp" "urn:schemas-upnp-org:metadata-1-0/upnp/"
+    , attribute "xmlns"      "urn:schemas-upnp-org:metadata-1-0/DIDL-Lite/" ]
+    ( map elementToContent es )
+  )
 
 
 -- Slice out a portion of a list.
