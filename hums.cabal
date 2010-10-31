@@ -57,5 +57,4 @@ Other-modules:       Paths_hums
                      MimeType
                      Action
                      Object
-                     Didl
                      SendFile
