@@ -208,6 +208,6 @@ sendXml xml = do
   setContentLength $ Just $ toInteger $ L.length xml
   addHeader (Header HdrConnection "close")
   addHeader (Header HdrContentType "text/xml")
-  logMessage $ "Sending XML:"
-  logDataLBS xml
+  -- logMessage $ "Sending XML:"
+  -- logDataLBS xml
   writeToBody xml
