@@ -29,7 +29,6 @@ import Network.HTTP.Base
 import Network.HTTP.Headers
 import Network.StreamSocket()
 import Service
-import Text.Regex
 import Text.Printf
 import Action
 import System.IO (withFile, hFileSize, IOMode(..))
@@ -39,7 +38,7 @@ import HttpExtra
 import System.FilePath
 import Data.ByteString.Lazy (ByteString)
 import qualified Data.ByteString.Lazy as L
-import Data.Maybe (isJust)
+import Data.List (isInfixOf)
 import Data.IORef
 import HttpMonad
 import Control.Monad.Trans.Class (lift)
@@ -118,57 +117,50 @@ serveStaticFile mimeType fp = do
 
 -- Regular expressions for avoiding relative URLs. These
 -- are overly conservative, but what the heck...
-dotDotSlash :: Regex
-dotDotSlash = mkRegex "\\.\\./"
-slashDotDot :: Regex
-slashDotDot = mkRegex "/\\.\\."
+dotDotSlash :: String
+dotDotSlash = "../"
+slashDotDot :: String
+slashDotDot = "/.."
 
 -- Handler for the root description.
-rootDescriptionHandler :: State -> [String] -> HttpT IO ()
-rootDescriptionHandler (c,mc,ai,s,_) gs = do
+rootDescriptionHandler :: State -> HttpT IO ()
+rootDescriptionHandler (c,mc,ai,s,_) = do
   logMessage "Got request for root description."
   sendXml $ generateDescriptionXml c mc s
   logMessage "Sent root description."
 
 -- Handle static files.
-staticHandler :: String -> [String] -> HttpT IO ()
-staticHandler root gs = do
-  logMessage $ "Got request for static content: " ++ show gs
-  case gs of
-    [p] -> if isJust (matchRegex dotDotSlash p) ||     -- Reject relative URLs.
-              isJust (matchRegex slashDotDot p) then
-             sendError InternalServerError
-           else
-             serveStaticFile mimeType fp
-           where
-             fp = root </> p
-             mimeType = guessMimeType fp
-    _ ->
-      sendError InternalServerError
+staticHandler :: String -> String -> HttpT IO ()
+staticHandler root p = do
+  logMessage $ "Got request for static content: " ++ p
+  if dotDotSlash `isInfixOf` p ||     -- Reject relative URLs.
+     slashDotDot `isInfixOf` p then
+    sendError InternalServerError
+    else
+    serveStaticFile mimeType fp
+  where
+    fp = root </> p
+    mimeType = guessMimeType fp
 
 -- Handle requests for content.
-contentHandler :: State -> [String] -> HttpT IO ()
-contentHandler (c,mc,ai,s,objects_) gs = do
+contentHandler :: State -> String -> HttpT IO ()
+contentHandler (c,mc,ai,s,objects_) oid = do
   objects <- lift $ readIORef objects_     -- Current snapshot of object tree.
-  case gs of
-    [oid] -> do
-          logMessage $ printf "Got request for CONTENT for objectId=%s" oid
-          -- Serve the file which the object maps to.
-          case findByObjectId oid objects of
-               Just o ->
-                 serveStaticFile mt fp
-                   where
-                     od = getObjectData o
-                     fp = objectFileName od
-                     mt = objectMimeType od
-               Nothing ->
-                 sendError NotFound
-    _ ->
-      sendError InternalServerError
+  logMessage $ printf "Got request for CONTENT for objectId=%s" oid
+  -- Serve the file which the object maps to.
+  case findByObjectId oid objects of
+       Just o ->
+         serveStaticFile mt fp
+           where
+             od = getObjectData o
+             fp = objectFileName od
+             mt = objectMimeType od
+       Nothing ->
+         sendError NotFound
 
 -- Handle requests for device CONTROL urls.
-serviceControlHandler :: State -> DeviceType -> [String] -> HttpT IO ()
-serviceControlHandler (c,mc,ai,s,objects_) deviceType gs = do
+serviceControlHandler :: State -> DeviceType -> String -> HttpT IO ()
+serviceControlHandler (c,mc,ai,s,objects_) deviceType _ = do
   objects <- lift $ readIORef objects_      -- Current snapshot of object tree.
   logMessage $ printf "Got request for CONTROL for service '%s'" $ deviceTypeToString deviceType
   -- Parse the SOAP request

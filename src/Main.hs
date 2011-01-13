@@ -34,7 +34,7 @@ import Data.ConfigFile
 import Paths_hums
 import Data.IORef
 import Handlers
-import HttpMonad (ifRegex)
+import HttpMonad (ifPath, ifPrefix)
 
 defaultMediaServerConfiguration :: String -> MediaServerConfiguration
 defaultMediaServerConfiguration uuid_ =
@@ -88,11 +88,11 @@ main = niceSocketsDo $ do
       let st = (c,mc,appInfo,services, defaultObjects)
 
       let handlers =
-            ifRegex "^/description\\.xml$" (rootDescriptionHandler st) $
-            ifRegex "^/static/(.*)$" (staticHandler $ dataDirectory </> "www") $
-            ifRegex "^/dynamic/services/ContentDirectory/control/?$" (serviceControlHandler st ContentDirectoryDevice) $
-            ifRegex "^/dynamic/services/ConnectionManager/control/?$" (serviceControlHandler st ConnectionManagerDevice) $
-            ifRegex "^/content/([0-9a-f,]+)$" (contentHandler st) $
+            ifPath "/description.xml" (rootDescriptionHandler st) $
+            ifPrefix "/static/" (staticHandler $ dataDirectory </> "www") $
+            ifPrefix "/dynamic/services/ContentDirectory/control" (serviceControlHandler st ContentDirectoryDevice) $
+            ifPrefix "/dynamic/services/ConnectionManager/control" (serviceControlHandler st ConnectionManagerDevice) $
+            ifPrefix "/content/" (contentHandler st) $
             fallbackHandler
 
       -- Start serving.

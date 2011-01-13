@@ -26,7 +26,8 @@ module HttpMonad ( HttpT
                  , logDataLBS
                  , logMessage
                  , getRequest
-                 , ifRegex
+                 , ifPrefix
+                 , ifPath
                  ) where
 
 import Control.Monad.Trans.Class (MonadTrans(..))
@@ -42,11 +43,11 @@ import Network.URI (uriPath)
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as S
 import qualified Data.ByteString.Lazy as L
+import Data.List (stripPrefix)
 import qualified Data.Text as T
 import Data.Text.Encoding (encodeUtf8)
 import SendFile (sendFile)
 import Text.Printf (printf)
-import Text.Regex (matchRegex, mkRegex)
 
 -- HTTP response codes.
 data HttpResponseCode = OK
@@ -152,12 +153,23 @@ logDataLBS s = HttpT $ liftIO $ L.putStrLn s
 getRequest :: (Functor m, Monad m) => HttpT m (Request String)
 getRequest = HttpT $ ask
 
--- Match request prefix.
-ifRegex :: (Functor m, Monad m) => String -> ([String] -> HttpT m ()) -> HttpT m () -> HttpT m ()
-ifRegex r ifMatch ifNoMatch = do
+-- Dispatch based on a test-and-forward function.
+dispatchOn :: (Functor m, Monad m) => (String -> Maybe a) -> (a -> HttpT m ()) -> HttpT m () -> HttpT m ()
+dispatchOn p ifMatch ifNoMatch = do
   request <- getRequest
-  case matchRegex re $ urlDecode $ uriPath $ rqURI request of
-    Just gs -> ifMatch gs
+  case p $ urlDecode $ uriPath $ rqURI request of
+    Just r -> ifMatch r
     Nothing -> ifNoMatch
+
+-- Match request prefix. The request path is stripped of the prefix
+-- before being forwarded to the handler.
+ifPrefix :: (Functor m, Monad m) => String -> (String -> HttpT m ()) -> HttpT m () -> HttpT m ()
+ifPrefix p = dispatchOn (stripPrefix p)
+
+-- Match full request path.
+ifPath :: (Functor m, Monad m) => String -> HttpT m () -> HttpT m () -> HttpT m ()
+ifPath p ifMatch ifNoMatch =
+  dispatchOn predicate ifMatch' ifNoMatch
   where
-    re = mkRegex r
+    predicate p' = if p == p' then Just () else Nothing
+    ifMatch' _ = ifMatch
