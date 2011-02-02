@@ -48,14 +48,14 @@ generateNotifyAlive ai c msc messageType =
            , printf "\r\n" ]
     where
       base_url = show $ mkURI ["description.xml"] $ httpServerBase c
-      messageTypeAsString UpnpServiceNotification = printf "uuid:%s" $ uuid msc
+      messageTypeAsString UpnpServiceNotification = "uuid:" ++ (uuid msc)
       messageTypeAsString RootDeviceNotification = "upnp:rootdevice"
       messageTypeAsString ConnectionManagerNotification = "urn:schemas-upnp-org:service:ConnectionManager:1"
       messageTypeAsString ContentDirectoryNotification = "urn:schemas-upnp-org:service:ContentDirectory:1"
       messageTypeAsString MediaServerNotification = "urn:schemas-upnp-org:device:MediaServer:1"
       messageTypeSuffix = case messageType of
                             UpnpServiceNotification -> ""
-                            _ -> printf "::%s" $ messageTypeAsString messageType
+                            _ -> "::" ++ (messageTypeAsString messageType)
 
 sendRawMessage :: Configuration -> String -> IO ()
 sendRawMessage c m = do

@@ -24,7 +24,6 @@ module Configuration ( Configuration(..)
                      , parseConfiguration
                      ) where
 
-import Data.Word
 import System.Posix.Unistd (SystemID(..), getSystemID)
 import Text.Printf
 import Network.URI (URI, parseURI)
@@ -42,7 +41,7 @@ import Data.Maybe
 data Configuration =
     Configuration { localNetIp :: String
                   , httpServerBase :: URI
-                  , httpServerPort :: Word16
+                  , httpServerPort :: Int
                   , enableDeviceIcon :: Bool
                   , useDlna :: Bool
                   , dlnaProfileName :: Maybe String -- Only used when useDlna is available.

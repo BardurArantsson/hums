@@ -19,15 +19,18 @@
 module MimeType ( guessMimeType
                 ) where
 
+import Data.ByteString (ByteString)
+import Data.ByteString.Char8 ()
 import System.FilePath
 
 -- A primitive MIME type guesser. We use a custom one instead of the
 -- relatively standard /etc/mime.types since UPnP media server clients
 -- can be finicky about which MIME types they accept.
-guessMimeType :: FilePath -> String
+guessMimeType :: FilePath -> ByteString
 guessMimeType fp =
     mimeType $ takeExtension fp
     where
+      mimeType :: String -> ByteString
       mimeType ".xml"  = "text/xml"
       mimeType ".avi"  = "video/divx"   -- PlayStation 3 oddity ('x-msvideo' is standard)
       mimeType ".mp3"  = "audio/mpeg"

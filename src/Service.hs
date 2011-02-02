@@ -38,6 +38,7 @@ import Data.Text.Lazy (Text)
 import qualified Data.Text.Lazy as T
 import Data.Text.Lazy.Encoding (decodeUtf8)
 import Data.ByteString.Lazy (ByteString)
+import qualified Data.ByteString.Char8 as B8
 
 myQuote :: Text -> Text
 myQuote =        -- TODO: There *must* be a better way to achieve our quoting needs.
@@ -117,7 +118,7 @@ generateIconList False = comment " omitted device icon list "
 generateIconList True =
   (simpleElement "iconList"
    [ simpleElement "icon"
-     [ textElement "mimetype" $ guessMimeType imageUrl
+     [ textElement "mimetype" $ B8.unpack $ guessMimeType imageUrl
      , textElement "width"      "240"
      , textElement "height"     "240"
      , textElement "url"        imageUrl
@@ -247,7 +248,7 @@ generateSoapEnvelope bodyE =
     )
   )
     where
-      soapNs = attribute "xmlns:s" $ printf "%s/envelope/" urlPrefix
+      soapNs = attribute "xmlns:s" $ (urlPrefix ++ "/envelope/")
       soapEncodingStyle = attribute "s:encodingStyle" $ printf "%s/encoding/" urlPrefix
       urlPrefix = "http://schemas.xmlsoap.org/soap"
 
@@ -264,8 +265,8 @@ generateObjectElement cfg objects (oid, o) =
       od = getObjectData o
       en = getObjectElementName o
       ee = generateExtraElements cfg (oid,o)
-      as = [ attribute "id" oid
-           , attribute "parentID" $ objectParentId od
+      as = [ attribute "id" $ B8.unpack oid
+           , attribute "parentID" $ B8.unpack $ objectParentId od
            ]
       eas = generateExtraAttributes objects (oid,o)
 
@@ -295,9 +296,9 @@ generateExtraElementsForFile cfg oid d =
     [ contentUrl ]
   ]
     where
-      mimeType = objectMimeType d
+      mimeType = B8.unpack $ objectMimeType d
       protocolInfo = generateProtocolInfo cfg False mimeType Nothing  -- TODO: profileId
-      contentUrl = text $ show $ mkURI ["content", oid] $ httpServerBase cfg
+      contentUrl = text $ show $ mkURI ["content", B8.unpack $ oid] $ httpServerBase cfg
 
 mapMaybe1 :: (a -> b) -> Maybe a -> Maybe b
 mapMaybe1 f Nothing  = Nothing
@@ -328,7 +329,7 @@ generateProtocolInfo cfg transcode mimeType profileId =
       protocolPrefix = "http-get:*:" ++ mimeType ++ ":"
       protocolSuffix =
           if useDlna cfg then
-              join ";" $ mapMaybe (\(n,v) -> mapMaybe1 (printf "%s=%s" n) v) fields
+              join ";" $ mapMaybe (\(n,v) -> mapMaybe1 (\v' -> n ++ "=" ++ v') v) fields
           else
               "*"
       -- Protocol constants.

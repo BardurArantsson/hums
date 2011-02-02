@@ -21,7 +21,6 @@ Executable hums
   Build-Depends: base == 4.*
                , haskell98
                , network == 2.3.*
-               , HTTP == 4000.1.*
                , filepath >= 1.1.0.0
                , parsec >= 2.1.0.0 && < 3.0
                , unix >= 2.3.0.0
@@ -29,15 +28,21 @@ Executable hums
                , containers >= 0.1.0.1
                , uuid >= 1.2.1 && < 1.3
                , bytestring >= 0.9.0.1
+               , blaze-builder == 0.2.*
                , MissingH >= 1.0.1
                , hxt >= 9.0.1
                , ConfigFile >= 1.0.5
                , mtl == 2.0.*
                , transformers == 0.2.*
                , hashmap == 1.1.*
-               , text == 0.10.*
+               , text == 0.11.*
                , HaXml == 1.20.*
-  Extensions:          Arrows GeneralizedNewtypeDeriving
+               , enumerator >= 0.4.8
+               , wai == 0.3.*
+               , warp >= 0.3.3
+  Extensions:          Arrows
+                       GeneralizedNewtypeDeriving
+                       OverloadedStrings
   ghc-options:         -Wall -fno-warn-unused-matches -threaded
   hs-source-dirs:      src
   Main-is:             Main.hs
@@ -46,12 +51,9 @@ Executable hums
                        DirectoryUtils
                        Handlers
                        HttpExtra
-                       HttpMonad
-                       HttpServer
                        MimeType
                        Object
                        Paths_hums
-                       SendFile
                        Service
                        SimpleServiceDiscoveryProtocol
                        Soap

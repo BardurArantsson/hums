@@ -19,9 +19,7 @@
 import Network.Utils
 import SimpleServiceDiscoveryProtocol
 import Configuration
-import Network.StreamSocket()
 import Control.Concurrent
-import HttpServer
 import Service
 import Text.Printf
 import qualified Data.UUID as U
@@ -34,7 +32,11 @@ import Data.ConfigFile
 import Paths_hums
 import Data.IORef
 import Handlers
-import HttpMonad (ifPath, ifPrefix)
+import Network.Wai
+import Network.Wai.Handler.Warp
+import Data.ByteString (ByteString)
+import qualified Data.ByteString as B
+import Data.Enumerator (Iteratee)
 
 defaultMediaServerConfiguration :: String -> MediaServerConfiguration
 defaultMediaServerConfiguration uuid_ =
@@ -63,52 +65,64 @@ scanOnce directory = do
     putStrLn $ printf "Scanning completed"
     return objects
 
+handleIf :: (Maybe a) -> (a -> Iteratee ByteString IO Response) -> Iteratee ByteString IO Response -> Iteratee ByteString IO Response
+handleIf Nothing  _     noMatch = noMatch
+handleIf (Just x) match _       = match x
+
 main :: IO ()
 main = niceSocketsDo $ do
-      -- Get the data directory.
-      dataDirectory <- getDataFileName "."
 
-      -- Parse configuration.
-      c <- parseConfiguration emptyCP $ dataDirectory </> "hums.cfg"
-      print c
+  -- Get the data directory.
+  dataDirectory <- getDataFileName "."
 
-      -- Scan objects once at the start.
-      let scanOnce' = scanOnce $ rootDirectory c
-      defaultObjects_ <- scanOnce'
-      defaultObjects <- newIORef defaultObjects_
+  -- Parse configuration.
+  c <- parseConfiguration emptyCP $ dataDirectory </> "hums.cfg"
+  print c
 
-      -- Get the application information.
-      appInfo <- getApplicationInformation
+  -- Scan objects once at the start.
+  let scanOnce' = scanOnce $ rootDirectory c
+  defaultObjects_ <- scanOnce'
+  defaultObjects <- newIORef defaultObjects_
 
-      -- Build configurations, etc.
-      u <- fmap (U.toString . fromJust) U1.nextUUID
-      putStrLn $ "My UUID is: " ++ u
-      let mc = defaultMediaServerConfiguration u
-      let services = [ ContentDirectoryDevice, ConnectionManagerDevice ]
-      let st = (c,mc,appInfo,services, defaultObjects)
+  -- Get the application information.
+  appInfo <- getApplicationInformation
 
-      let handlers =
-            ifPath "/description.xml" (rootDescriptionHandler st) $
-            ifPrefix "/static/" (staticHandler $ dataDirectory </> "www") $
-            ifPrefix "/dynamic/services/ContentDirectory/control" (serviceControlHandler st ContentDirectoryDevice) $
-            ifPrefix "/dynamic/services/ConnectionManager/control" (serviceControlHandler st ConnectionManagerDevice) $
-            ifPrefix "/content/" (contentHandler st) $
-            fallbackHandler
+  -- Build configurations, etc.
+  u <- fmap (U.toString . fromJust) U1.nextUUID
+  putStrLn $ "My UUID is: " ++ u
+  let mc = defaultMediaServerConfiguration u
+  let services = [ ContentDirectoryDevice, ConnectionManagerDevice ]
+  let st = (c,mc,appInfo,services, defaultObjects)
 
-      -- Start serving.
-      putStrLn "Establishing HTTP server..."
-      _ <- forkIO $ runHttpServer handlers $ httpServerPort c
-      _ <- putStrLn "Done."
+  let myApplication :: Application
+      myApplication r =
+        ifPath "/description.xml" (\_ -> rootDescriptionHandler st) $
+        ifPrefix "/static/" (staticHandler r $ dataDirectory </> "www") $
+        ifPrefix "/dynamic/services/ContentDirectory/control" (serviceControlHandler st ContentDirectoryDevice) $
+        ifPrefix "/dynamic/services/ConnectionManager/control" (serviceControlHandler st ConnectionManagerDevice) $
+        ifPrefix "/content/" (contentHandler r st) $
+        fallbackHandler
+          where
+            ifPath p t f = handleIf (isPath p) t f
+            ifPrefix p t f = handleIf (isPrefix p) t f
+            isPath p = if pathInfo r == p then Just () else Nothing
+            isPrefix p | B.isPrefixOf p $ pathInfo r = Just $ B.drop (B.length p) $ pathInfo r
+            isPrefix _ = Nothing
 
-      -- Start broadcasting alive messages.
-      putStrLn "Establishing notification broadcaster..."
-      _ <- forkIO $ sendNotifyForever appInfo c mc
+  -- Start serving.
+  putStrLn "Establishing HTTP server..."
+  _ <- forkIO $ runEx (\e -> putStrLn $ show e) (httpServerPort c) myApplication
+  _ <- putStrLn "Done."
 
-      -- Start scanning files/directories in the background.
-      putStrLn "Establishing background scanner..."
-      _ <- forkIO $ periodicUpdate defaultObjects scanOnce'
+  -- Start broadcasting alive messages.
+  putStrLn "Establishing notification broadcaster..."
+  _ <- forkIO $ sendNotifyForever appInfo c mc
 
-      -- Wait for all threads to terminate.
-      interact id
+  -- Start scanning files/directories in the background.
+  putStrLn "Establishing background scanner..."
+  _ <- forkIO $ periodicUpdate defaultObjects scanOnce'
 
-      return ()
+  -- Wait for all threads to terminate.
+  interact id
+
+  return ()

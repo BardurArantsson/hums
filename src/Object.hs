@@ -31,10 +31,11 @@ module Object ( Objects( systemUpdateId )
               ) where
 
 import Action
+import Data.ByteString (ByteString, isPrefixOf)
+import qualified Data.ByteString.Char8 as B8
 import Data.Char (isAscii)
 import Data.HashMap (HashMap)
 import qualified Data.HashMap as H
-import Data.List (isPrefixOf)
 import DirectoryUtils
 import System.FilePath
 import MimeType
@@ -52,7 +53,7 @@ rootObjectParentId :: ObjectId
 rootObjectParentId = "-1"
 
 -- Dispatch table for selecting item type from MIME type.
-mimeTypeToObjectType :: String -> Maybe ObjectType
+mimeTypeToObjectType :: ByteString -> Maybe ObjectType
 mimeTypeToObjectType s | ("video/" `isPrefixOf` s) = Just ItemVideoMovie
 mimeTypeToObjectType s | ("audio/" `isPrefixOf` s) = Just ItemMusicTrack
 mimeTypeToObjectType s | ("inode/directory"  == s) = Just ContainerStorageFolder
@@ -74,7 +75,7 @@ data ObjectData = MkObjectData
     , objectFileName :: FilePath                -- Physical file.
     , objectFileSize :: Integer                 -- The size of the physical file.
     , objectLastModified :: Int64
-    , objectMimeType :: String                  -- MIME type of the file.
+    , objectMimeType :: ByteString              -- MIME type of the file.
     }
                   deriving (Show)
 
@@ -127,7 +128,7 @@ findExistingByObjectId :: ObjectId -> Objects -> Object
 findExistingByObjectId oid os =
     case findByObjectId oid os of
       Just x -> x
-      Nothing -> error $ printf "Couldn't find object '%s'" oid
+      Nothing -> error $ printf "Couldn't find object '%s'" $ B8.unpack oid
 
 -- Accumulator function for building the basic list of files/directories.
 scanFile :: [(ObjectId, Object)] -> [(ObjectId, Object)] -> FilePath -> IO [(ObjectId, Object)]
@@ -142,7 +143,7 @@ scanFile parentObjects objects fp = do
   st <- getFileStatus fp
   deviceId <- toHexString $ deviceID st
   fileId <- toHexString $ fileID st
-  let oid = printf "%s,%s" deviceId fileId
+  let oid = B8.pack $ printf "%s,%s" deviceId fileId
   -- Compute the update ID.
   let lastModified = round' $ toRational $ modificationTime st
   -- Compute file size.

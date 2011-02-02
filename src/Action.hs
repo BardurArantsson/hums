@@ -24,7 +24,9 @@ module Action ( ContentDirectoryAction(..)
               , ObjectId
               ) where
 
-type ObjectId = String
+import Data.ByteString (ByteString)
+
+type ObjectId = ByteString
 
 data BrowseParameters = BrowseParameters
     { objectId :: ObjectId
