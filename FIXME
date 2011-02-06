@@ -1,0 +1,15 @@
+-- Reduce the amount of printf'ing drastically!
+
+-- Get rid of the silly Parsec dependency...
+
+-- Use Blaze.Builder/"xml-enumerator" to build XML output instead
+   of HaXML?
+
+-- Switch to using "filemanip" System.FilePath.Find instead of
+  hand-rolled directory traversal...? MTL dependency could be a problem...
+
+-- Config.Dyre for recompiling?
+-- FIXME: Remove ConfigFile and mtl for Config.Dyre.
+
+-- Change the "dynamic/services/%s/control" bits of Service.hs to a common
+  function which can be used to also generate the routes.
