@@ -34,8 +34,8 @@ import Action
 import Data.ByteString (ByteString, isPrefixOf)
 import qualified Data.ByteString.Char8 as B8
 import Data.Char (isAscii)
-import Data.HashMap (HashMap)
-import qualified Data.HashMap as H
+import Data.HashMap.Strict (HashMap)
+import qualified Data.HashMap.Strict as H
 import DirectoryUtils
 import System.FilePath
 import MimeType
@@ -193,8 +193,6 @@ scanDirectory d = do
                                     , objectMimeType = "inode/directory" }))
 
     p2c acc (oid, o) =
-        H.alter (\x -> case x of
-                    Nothing -> Just [oid]
-                    Just cs -> Just (oid:cs)) pid acc
+      H.insertWith (++) pid [oid] acc
         where
           pid = objectParentId $ getObjectData o

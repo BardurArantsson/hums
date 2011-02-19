@@ -34,7 +34,7 @@ Executable hums
                , ConfigFile >= 1.0.5
                , mtl == 2.0.*
                , transformers == 0.2.*
-               , hashmap == 1.1.*
+               , unordered-containers == 0.1.*
                , text == 0.11.*
                , HaXml == 1.20.*
                , enumerator >= 0.4.8
