@@ -43,7 +43,7 @@ import Data.IORef
 import Control.Monad.Trans.Class (lift)
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import Network.Wai
-import Data.Enumerator (Iteratee, ($$))
+import Data.Enumerator (Iteratee, ($$), ($=))
 import Data.Enumerator.Binary (enumFileRange)
 import qualified Data.Enumerator as E
 import qualified Data.Enumerator.List as EL
@@ -85,9 +85,7 @@ serveStaticFile req mimeType fp = do
       let h' = maybe (fsz-1) id h
       let n = (h' - l' + 1)
       return $ ResponseEnumerator $ \f ->
-        E.run_ $ (E.joinE
-                  (enumFileRange fp l h)
-                  (EL.map insertByteString)) $$ f status206
+        E.run_ $ (enumFileRange fp l h $= EL.map insertByteString) $$ f status206
           [ hdrContentLength n
           , hdrContentType mimeType
           , hdrContentRange l' h' fsz
