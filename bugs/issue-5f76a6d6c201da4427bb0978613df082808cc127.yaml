@@ -1,0 +1,18 @@
+--- !ditz.rubyforge.org,2008-03-06/issue 
+title: Use unix-bytestring package instead of unix?
+desc: http://hackage.haskell.org/package/unix-bytestring-0.3.4.1
+type: :task
+component: hums
+release: 
+reporter: Bardur Arantsson <bardur@scientician.net>
+status: :unstarted
+disposition: 
+creation_time: 2011-04-04 05:36:34.159264 Z
+references: []
+
+id: 5f76a6d6c201da4427bb0978613df082808cc127
+log_events: 
+- - 2011-04-04 05:36:39.319195 Z
+  - Bardur Arantsson <bardur@scientician.net>
+  - created
+  - ""
