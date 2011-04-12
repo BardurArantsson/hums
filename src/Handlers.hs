@@ -24,34 +24,35 @@ module Handlers ( rootDescriptionHandler
                 , State
                 ) where
 
-import Soap
-import Configuration
-import Service
-import Text.Printf
-import Action
-import Blaze.ByteString.Builder (insertByteString)
-import System.IO (withFile, hFileSize, IOMode(..))
-import MimeType
-import Object
-import HttpExtra
-import System.FilePath
-import Data.ByteString (ByteString, isInfixOf)
+import           Blaze.ByteString.Builder (fromByteString)
+import           Control.Monad.IO.Class (MonadIO, liftIO)
+import           Control.Monad.Trans.Class (lift)
+import           Data.ByteString (ByteString)
 import qualified Data.ByteString as S
-import qualified Data.ByteString.Lazy as L
 import qualified Data.ByteString.Char8 as B8
-import Data.IORef
-import Control.Monad.Trans.Class (lift)
-import Control.Monad.IO.Class (MonadIO, liftIO)
-import Network.Wai
-import Data.Enumerator (Iteratee, ($$), ($=))
-import Data.Enumerator.Binary (enumFileRange)
-import qualified Data.Enumerator as E
-import qualified Data.Enumerator.List as EL
-import qualified Data.Text as T
-import Data.Text.Encoding (encodeUtf8, decodeUtf8)
-import Network.HTTP.Types (Status, Header, status206, statusServerError, statusOK, statusNotFound, headerContentType, headerContentLength, headerConnection)
-import Data.CaseInsensitive (CI)
+import qualified Data.ByteString.Lazy as L
+import           Data.CaseInsensitive (CI)
 import qualified Data.CaseInsensitive as CI
+import           Data.Conduit (ResourceT, ($$))
+import qualified Data.Conduit.List as CL
+import           Data.Conduit.Binary (sourceFileRange)
+import           Data.IORef (IORef, readIORef)
+import           Data.Text (Text)
+import qualified Data.Text as T
+import           Data.Text.Encoding (encodeUtf8, decodeUtf8)
+import           Network.HTTP.Types (Status, Header, status206, statusServerError, statusOK, statusNotFound, headerContentType, headerContentLength, headerConnection)
+import           Network.Wai (Application, Request, Response(..), requestBody, requestHeaders, responseLBS)
+import           System.FilePath
+import           System.IO (withFile, hFileSize, IOMode(..))
+import           Text.Printf (printf)
+
+import           Soap
+import           Configuration
+import           Service
+import           Action
+import           MimeType
+import           Object
+import           HttpExtra
 
 type State = (Configuration, MediaServerConfiguration, ApplicationInformation, [DeviceType], IORef Objects)
 
@@ -72,7 +73,7 @@ fileSize :: FilePath -> IO Integer
 fileSize fp =
   withFile fp ReadMode $ \h -> hFileSize h
 
-serveStaticFile :: Request -> ByteString -> FilePath -> Iteratee ByteString IO Response
+serveStaticFile :: Request -> ByteString -> FilePath -> ResourceT IO Response
 serveStaticFile req mimeType fp = do
   logMessage $ printf "Serving file '%s'..." fp
   -- Do we have a range header?
@@ -87,27 +88,20 @@ serveStaticFile req mimeType fp = do
       let l' = maybe 0 id l
       let h' = maybe (fsz-1) id h
       let n = (h' - l' + 1)
-      return $ ResponseEnumerator $ \f ->
-        E.run_ $ (enumFileRange fp l h $= EL.map insertByteString) $$ f status206
-          [ hdrContentLength n
-          , headerContentType mimeType
-          , hdrContentRange l' h' fsz
-          , hdrAcceptRangesBytes
-          , hdrConnectionClose
-          ]
+      let src = fmap fromByteString $ sourceFileRange fp (Just l') (Just n)
+      return $ ResponseSource status206 [ hdrContentLength n
+                                        , headerContentType mimeType
+                                        , hdrContentRange l' h' fsz
+                                        , hdrAcceptRangesBytes
+                                        , hdrConnectionClose
+                                        ] src
+
     serveFile _ _ = do
       -- This requires multipart/byteranges, but we don't support that as of yet.
       sendError statusServerError
 
--- Regular expressions for avoiding relative URLs. These
--- are overly conservative, but what the heck...
-dotDotSlash :: ByteString
-dotDotSlash = "../"
-slashDotDot :: ByteString
-slashDotDot = "/.."
-
 -- Handler for the root description.
-rootDescriptionHandler :: State -> Iteratee ByteString IO Response
+rootDescriptionHandler :: State -> ResourceT IO Response
 rootDescriptionHandler (c,mc,ai,s,_) = do
   logMessage "Got request for root description."
   let xml = generateDescriptionXml c mc s
@@ -117,23 +111,23 @@ rootDescriptionHandler (c,mc,ai,s,_) = do
                                 ] xml
 
 -- Handle static files.
-staticHandler :: Request -> String -> ByteString -> Iteratee ByteString IO Response
-staticHandler req root p = do
-  logMessage $ "Got request for static content: " ++ (show p)
-  if dotDotSlash `isInfixOf` p ||     -- Reject relative URLs.
-     slashDotDot `isInfixOf` p then
+staticHandler :: Request -> String -> [Text] -> ResourceT IO Response
+staticHandler req root path = do
+  logMessage $ "Got request for static content: " ++ (show path)
+  if dotDot `elem` path then     -- Reject relative URLs.
     sendError statusServerError
     else
     serveStaticFile req mimeType fp
    where
-     fp = root </> (T.unpack $ decodeUtf8 p)
+     fp = foldl (</>) root (map T.unpack path)
      mimeType = guessMimeType fp
+     dotDot = ".."
 
 -- Handle requests for content.
-contentHandler :: Request -> State -> ByteString -> Iteratee ByteString IO Response
+contentHandler :: Request -> State -> Text -> ResourceT IO Response
 contentHandler req (c,mc,ai,s,objects_) oid = do
   objects <- lift $ readIORef objects_     -- Current snapshot of object tree.
-  logMessage $ printf "Got request for CONTENT for objectId=%s" (B8.unpack oid)
+  logMessage $ printf "Got request for CONTENT for objectId=%s" (T.unpack oid)
   -- Serve the file which the object maps to.
   case findByObjectId oid objects of
        Just o ->
@@ -146,12 +140,12 @@ contentHandler req (c,mc,ai,s,objects_) oid = do
          sendError statusNotFound
 
 -- Handle requests for device CONTROL urls.
-serviceControlHandler :: State -> DeviceType -> ByteString -> Iteratee ByteString IO Response
-serviceControlHandler (c,mc,ai,s,objects_) deviceType _ = do
+serviceControlHandler :: State -> DeviceType -> Application
+serviceControlHandler (c,mc,ai,s,objects_) deviceType req = do
   objects <- lift $ readIORef objects_      -- Current snapshot of object tree.
   logMessage $ printf "Got request for CONTROL for service '%s'" $ deviceTypeToString deviceType
   -- Parse the SOAP request
-  requestXml <- fmap S.concat EL.consume
+  requestXml <- fmap S.concat $ requestBody req $$ CL.consume
   logMessage $ "Request: " ++ (show requestXml)
   action <- lift $ parseControlSoapXml $ T.unpack $ decodeUtf8 requestXml
   logMessage $ "Action: " ++ (show action)
@@ -175,28 +169,24 @@ serviceControlHandler (c,mc,ai,s,objects_) deviceType _ = do
 
 
 -- Last resort handler.
-fallbackHandler :: Iteratee ByteString IO Response
-fallbackHandler = do
-  return $ responseLBS statusNotFound [] ""
+fallbackHandler :: ResourceT IO Response
+fallbackHandler = return $ responseLBS statusNotFound [] ""
 
 -- Send an empty error response.
-sendError :: Monad m => Status -> Iteratee ByteString m Response
-sendError s = return $
-              responseLBS s [ hdrConnectionClose
-                            , hdrContentLength (0 :: Integer)
-                            ] ""
+sendError :: Status -> ResourceT IO Response
+sendError s = return $ responseLBS s [ hdrConnectionClose
+                                     , hdrContentLength (0 :: Integer)
+                                     ] ""
 
 -- Send generated XML.
-sendXml :: (MonadIO m, Functor m) => L.ByteString -> Iteratee ByteString m Response
-sendXml xml = return $
-  responseLBS statusOK [ hdrConnectionClose
-                       , hdrContentLength (L.length xml)
-                       , headerContentType "text/xml"
-                       ] xml
+sendXml :: L.ByteString -> ResourceT IO Response
+sendXml xml = return $ responseLBS statusOK [ hdrConnectionClose
+                                            , hdrContentLength (L.length xml)
+                                            , headerContentType "text/xml"
+                                            ] xml
 
-logMessage :: (MonadIO m, Functor m) => String -> Iteratee a m ()
-logMessage m = do
-  liftIO $ putStrLn m
+logMessage :: String -> ResourceT IO ()
+logMessage m = liftIO $ putStrLn m
 
 -- Convenience functions for DRY construction of headers.
 hdrConnectionClose :: Header

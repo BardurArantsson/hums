@@ -30,18 +30,19 @@ module Object ( Objects( systemUpdateId )
               , findExistingByObjectId
               ) where
 
-import Action
-import Data.ByteString (ByteString, isPrefixOf)
-import qualified Data.ByteString.Char8 as B8
-import Data.Char (isAscii)
-import Data.HashMap.Strict (HashMap)
+import           Action
+import           Data.ByteString (ByteString, isPrefixOf)
+import           Data.Char (isAscii)
+import           Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as H
+import qualified Data.Text as T
+import           Data.Int
+import           System.FilePath
+import           System.Posix
+import           Text.Printf
+
 import DirectoryUtils
-import System.FilePath
 import MimeType
-import Data.Int
-import System.Posix
-import Text.Printf
 import StorableExtra
 
 -- Root object id is defined by CD/§2.7.4.2.
@@ -128,7 +129,7 @@ findExistingByObjectId :: ObjectId -> Objects -> Object
 findExistingByObjectId oid os =
     case findByObjectId oid os of
       Just x -> x
-      Nothing -> error $ printf "Couldn't find object '%s'" $ B8.unpack oid
+      Nothing -> error $ printf "Couldn't find object '%s'" $ T.unpack oid
 
 -- Accumulator function for building the basic list of files/directories.
 scanFile :: [(ObjectId, Object)] -> [(ObjectId, Object)] -> FilePath -> IO [(ObjectId, Object)]
@@ -143,7 +144,7 @@ scanFile parentObjects objects fp = do
   st <- getFileStatus fp
   deviceId <- toHexString $ deviceID st
   fileId <- toHexString $ fileID st
-  let oid = B8.pack $ printf "%s,%s" deviceId fileId
+  let oid = T.pack $ printf "%s,%s" deviceId fileId
   -- Compute the update ID.
   let lastModified = round' $ toRational $ modificationTime st
   -- Compute file size.

@@ -22,31 +22,33 @@ module Service ( generateDescriptionXml
                , deviceTypeToString
                ) where
 
-import Text.Printf
-import Text.XML.HaXml.Types
-import Text.XML.HaXml.ByteStringPP
+import           Data.Bits
+import           Data.ByteString.Lazy (ByteString)
+import qualified Data.ByteString.Char8 as B8
+import           Data.Int
+import           Data.List.Utils
+import           Data.Maybe (mapMaybe)
+import qualified Data.Text as T
+import           Data.Text.Lazy (Text)
+import qualified Data.Text.Lazy as TL
+import           Data.Text.Lazy.Encoding (decodeUtf8)
+import           Text.Printf
+import           Text.XML.HaXml.Types
+import           Text.XML.HaXml.ByteStringPP
+
 import Configuration
 import Action
-import Data.Maybe (mapMaybe)
 import Object
-import Data.List.Utils
-import Data.Bits
-import Data.Int
 import MimeType
 import URIExtra
-import Data.Text.Lazy (Text)
-import qualified Data.Text.Lazy as T
-import Data.Text.Lazy.Encoding (decodeUtf8)
-import Data.ByteString.Lazy (ByteString)
-import qualified Data.ByteString.Char8 as B8
 
 myQuote :: Text -> Text
 myQuote =        -- TODO: There *must* be a better way to achieve our quoting needs.
-    T.concatMap f
+    TL.concatMap f
     where
-      f '<' = T.pack "&lt;"
-      f '>' = T.pack "&gt;"
-      f c   = T.singleton c
+      f '<' = TL.pack "&lt;"
+      f '>' = TL.pack "&gt;"
+      f c   = TL.singleton c
 
 sanitizeXmlChars :: String -> String
 sanitizeXmlChars = map f
@@ -181,7 +183,7 @@ mkBrowseResponse cfg st os numberReturned totalMatches didl =
     , textElement "UpdateID" $ printf "%d" $ systemUpdateId os
     ] )
   where
-    didlXml = T.unpack $ myQuote $ decodeUtf8 $ element $ didl
+    didlXml = TL.unpack $ myQuote $ decodeUtf8 $ element $ didl
 
 generateBrowseResponse :: Configuration -> DeviceType -> Objects -> BrowseAction -> Element ()
 generateBrowseResponse cfg st os (BrowseMetadata bps) =
@@ -265,8 +267,8 @@ generateObjectElement cfg objects (oid, o) =
       od = getObjectData o
       en = getObjectElementName o
       ee = generateExtraElements cfg (oid,o)
-      as = [ attribute "id" $ B8.unpack oid
-           , attribute "parentID" $ B8.unpack $ objectParentId od
+      as = [ attribute "id" $ T.unpack oid
+           , attribute "parentID" $ T.unpack $ objectParentId od
            ]
       eas = generateExtraAttributes objects (oid,o)
 
@@ -298,7 +300,7 @@ generateExtraElementsForFile cfg oid d =
     where
       mimeType = B8.unpack $ objectMimeType d
       protocolInfo = generateProtocolInfo cfg False mimeType Nothing  -- TODO: profileId
-      contentUrl = text $ show $ mkURI ["content", B8.unpack $ oid] $ httpServerBase cfg
+      contentUrl = text $ show $ mkURI ["content", T.unpack $ oid] $ httpServerBase cfg
 
 mapMaybe1 :: (a -> b) -> Maybe a -> Maybe b
 mapMaybe1 f Nothing  = Nothing

@@ -19,8 +19,9 @@
 module Soap ( parseControlSoapXml
             ) where
 
-import qualified Data.ByteString.Char8 as B8
-import Text.XML.HXT.Core
+import           Data.Text as T
+import           Text.XML.HXT.Core
+
 import Action
 
 -- Utility functions for parsing XML.
@@ -63,7 +64,7 @@ parseCDBrowse =
             si         <- numberAtTag "StartingIndex"               -< l
             rq         <- numberAtTag "RequestedCount"              -< l
             sc         <- textAtTag "SortCriteria"                  -< l
-            returnA    -< let bps = BrowseParameters (B8.pack oid) flt si rq sc in
+            returnA    -< let bps = BrowseParameters (T.pack oid) flt si rq sc in
                             ContentDirectoryBrowse $ bf bps
 
 parseCDSearchCapabilities :: ArrowXml a => a XmlTree ContentDirectoryAction

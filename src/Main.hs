@@ -16,27 +16,25 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 -}
 
-import Network.Utils
-import SimpleServiceDiscoveryProtocol
-import Configuration
-import Control.Concurrent
-import Service
-import Text.Printf
+import           Control.Concurrent
+import           Control.Monad.Error
+import           Data.ConfigFile
+import           Data.IORef
+import           Data.Maybe (fromJust)
 import qualified Data.UUID as U
 import qualified Data.UUID.V1 as U1
-import Object
-import Control.Monad.Error
-import System.FilePath
-import Data.Maybe (fromJust)
-import Data.ConfigFile
-import Paths_hums
-import Data.IORef
+import           Network.Utils
+import           Network.Wai (Application, Request(..))
+import           Network.Wai.Handler.Warp (run)
+import           System.FilePath
+import           Text.Printf
+
+import Configuration
 import Handlers
-import Network.Wai (Application, Response, Request(..))
-import Network.Wai.Handler.Warp (run)
-import Data.ByteString (ByteString)
-import qualified Data.ByteString as B
-import Data.Enumerator (Iteratee)
+import Object
+import Paths_hums
+import Service
+import SimpleServiceDiscoveryProtocol
 
 defaultMediaServerConfiguration :: String -> MediaServerConfiguration
 defaultMediaServerConfiguration uuid_ =
@@ -65,9 +63,21 @@ scanOnce directory = do
     putStrLn $ printf "Scanning completed"
     return objects
 
-handleIf :: (Maybe a) -> (a -> Iteratee ByteString IO Response) -> Iteratee ByteString IO Response -> Iteratee ByteString IO Response
-handleIf Nothing  _     noMatch = noMatch
-handleIf (Just x) match _       = match x
+application :: State -> String -> Application
+application state dataDirectory request = do
+  case pathInfo request of
+    ["description.xml"] ->
+      rootDescriptionHandler state
+    ("static" : path) ->
+      staticHandler request (dataDirectory </> "www") path
+    ("dynamic" : "services" : "ContentDirectory" : "control" : _) ->
+      serviceControlHandler state ContentDirectoryDevice request
+    ("dynamic" : "services" : "ConnectionManager" : "control" : _) ->
+      serviceControlHandler state ConnectionManagerDevice request
+    ["content" , objectId ] ->
+      contentHandler request state objectId
+    _ ->
+      fallbackHandler
 
 main :: IO ()
 main = niceSocketsDo $ do
@@ -94,24 +104,9 @@ main = niceSocketsDo $ do
   let services = [ ContentDirectoryDevice, ConnectionManagerDevice ]
   let st = (c,mc,appInfo,services, defaultObjects)
 
-  let myApplication :: Application
-      myApplication r =
-        ifPath "/description.xml" (\_ -> rootDescriptionHandler st) $
-        ifPrefix "/static/" (staticHandler r $ dataDirectory </> "www") $
-        ifPrefix "/dynamic/services/ContentDirectory/control" (serviceControlHandler st ContentDirectoryDevice) $
-        ifPrefix "/dynamic/services/ConnectionManager/control" (serviceControlHandler st ConnectionManagerDevice) $
-        ifPrefix "/content/" (contentHandler r st) $
-        fallbackHandler
-          where
-            ifPath p t f = handleIf (isPath p) t f
-            ifPrefix p t f = handleIf (isPrefix p) t f
-            isPath p = if rawPathInfo r == p then Just () else Nothing
-            isPrefix p | B.isPrefixOf p $ rawPathInfo r = Just $ B.drop (B.length p) $ rawPathInfo r
-            isPrefix _ = Nothing
-
   -- Start serving.
   putStrLn "Establishing HTTP server..."
-  _ <- forkIO $ run (httpServerPort c) myApplication
+  _ <- forkIO $ run (httpServerPort c) (application st dataDirectory)
   _ <- putStrLn "Done."
 
   -- Start broadcasting alive messages.
