@@ -49,6 +49,9 @@ import qualified Data.Enumerator as E
 import qualified Data.Enumerator.List as EL
 import qualified Data.Text as T
 import Data.Text.Encoding (encodeUtf8, decodeUtf8)
+import Network.HTTP.Types (Status, Header, status206, statusServerError, statusOK, statusNotFound, headerContentType, headerContentLength, headerConnection)
+import Data.CaseInsensitive (CI)
+import qualified Data.CaseInsensitive as CI
 
 type State = (Configuration, MediaServerConfiguration, ApplicationInformation, [DeviceType], IORef Objects)
 
@@ -87,7 +90,7 @@ serveStaticFile req mimeType fp = do
       return $ ResponseEnumerator $ \f ->
         E.run_ $ (enumFileRange fp l h $= EL.map insertByteString) $$ f status206
           [ hdrContentLength n
-          , hdrContentType mimeType
+          , headerContentType mimeType
           , hdrContentRange l' h' fsz
           , hdrAcceptRangesBytes
           , hdrConnectionClose
@@ -110,7 +113,7 @@ rootDescriptionHandler (c,mc,ai,s,_) = do
   let xml = generateDescriptionXml c mc s
   return $ responseLBS statusOK [ hdrConnectionClose
                                 , hdrContentLength (L.length xml)
-                                , hdrContentType "text/xml"
+                                , headerContentType "text/xml"
                                 ] xml
 
 -- Handle static files.
@@ -188,7 +191,7 @@ sendXml :: (MonadIO m, Functor m) => L.ByteString -> Iteratee ByteString m Respo
 sendXml xml = return $
   responseLBS statusOK [ hdrConnectionClose
                        , hdrContentLength (L.length xml)
-                       , hdrContentType "text/xml"
+                       , headerContentType "text/xml"
                        ] xml
 
 logMessage :: (MonadIO m, Functor m) => String -> Iteratee a m ()
@@ -196,22 +199,19 @@ logMessage m = do
   liftIO $ putStrLn m
 
 -- Convenience functions for DRY construction of headers.
-hdrContentType :: ByteString -> (ResponseHeader, ByteString)
-hdrContentType t = ("Content-Type", t)
+hdrConnectionClose :: Header
+hdrConnectionClose = headerConnection "close"
 
-hdrContentLength :: Integral a => a -> (ResponseHeader, ByteString)
-hdrContentLength l = ("Content-Length", encodeUtf8 $ T.pack $ show l)
+hdrAcceptRangesBytes :: Header
+hdrAcceptRangesBytes = (CI.mk "accept-ranges", "bytes")
 
-hdrConnectionClose :: (ResponseHeader, ByteString)
-hdrConnectionClose = ("Connection", "close")
+hdrContentRange :: Integer -> Integer -> Integer -> Header
+hdrContentRange l h s = (CI.mk "content-range", B8.pack $ printf "%d-%d/%d" l h s)
 
-hdrAcceptRangesBytes :: (ResponseHeader, ByteString)
-hdrAcceptRangesBytes = (mkCIByteString "accept-ranges", "bytes")
-
-hdrContentRange :: Integer -> Integer -> Integer -> (ResponseHeader, ByteString)
-hdrContentRange l h s = (mkCIByteString "content-range", B8.pack $ printf "%d-%d/%d" l h s)
+hdrContentLength :: Integral a => a -> Header
+hdrContentLength l = headerContentLength $ encodeUtf8 $ T.pack $ show l
 
 -- Name of the range header.
-rangeHeader :: CIByteString
-rangeHeader = mkCIByteString "range"
+rangeHeader :: CI ByteString
+rangeHeader = CI.mk "range"
 

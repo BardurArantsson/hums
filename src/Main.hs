@@ -32,8 +32,8 @@ import Data.ConfigFile
 import Paths_hums
 import Data.IORef
 import Handlers
-import Network.Wai
-import Network.Wai.Handler.Warp
+import Network.Wai (Application, Response, Request(..))
+import Network.Wai.Handler.Warp (run)
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as B
 import Data.Enumerator (Iteratee)
@@ -105,13 +105,13 @@ main = niceSocketsDo $ do
           where
             ifPath p t f = handleIf (isPath p) t f
             ifPrefix p t f = handleIf (isPrefix p) t f
-            isPath p = if pathInfo r == p then Just () else Nothing
-            isPrefix p | B.isPrefixOf p $ pathInfo r = Just $ B.drop (B.length p) $ pathInfo r
+            isPath p = if rawPathInfo r == p then Just () else Nothing
+            isPrefix p | B.isPrefixOf p $ rawPathInfo r = Just $ B.drop (B.length p) $ rawPathInfo r
             isPrefix _ = Nothing
 
   -- Start serving.
   putStrLn "Establishing HTTP server..."
-  _ <- forkIO $ runEx (\e -> putStrLn $ show e) (httpServerPort c) myApplication
+  _ <- forkIO $ run (httpServerPort c) myApplication
   _ <- putStrLn "Done."
 
   -- Start broadcasting alive messages.
