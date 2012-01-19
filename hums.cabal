@@ -45,7 +45,7 @@ Executable hums
   Extensions:          Arrows
                        GeneralizedNewtypeDeriving
                        OverloadedStrings
-  ghc-options:         -Wall -O2 -fno-warn-unused-matches -threaded
+  ghc-options:         -Wall -fno-warn-unused-matches -threaded
   hs-source-dirs:      src
   Main-is:             Main.hs
   Other-modules:       Action
