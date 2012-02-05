@@ -33,7 +33,7 @@ import qualified Data.ByteString.Char8 as B8
 import qualified Data.ByteString.Lazy as L
 import           Data.CaseInsensitive (CI)
 import qualified Data.CaseInsensitive as CI
-import           Data.Conduit (ResourceT, ($$))
+import           Data.Conduit (ResourceT, Flush(..), ($$))
 import qualified Data.Conduit.List as CL
 import           Data.Conduit.Binary (sourceFileRange)
 import           Data.IORef (IORef, readIORef)
@@ -88,7 +88,7 @@ serveStaticFile req mimeType fp = do
       let l' = maybe 0 id l
       let h' = maybe (fsz-1) id h
       let n = (h' - l' + 1)
-      let src = fmap fromByteString $ sourceFileRange fp (Just l') (Just n)
+      let src = fmap (Chunk . fromByteString) $ sourceFileRange fp (Just l') (Just n)
       return $ ResponseSource status206 [ hdrContentLength n
                                         , headerContentType mimeType
                                         , hdrContentRange l' h' fsz
