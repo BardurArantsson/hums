@@ -174,7 +174,7 @@ generateDescription c mc services =
       deviceType = deviceTypeToString MediaServer
 --      dlna = if useDlna mc then (Just "DMS-1.00") else Nothing
 
-mkBrowseResponse :: Integral a => Configuration -> DeviceType -> Objects -> a -> a -> Element () -> Element ()
+mkBrowseResponse :: (Show a, Integral a) => Configuration -> DeviceType -> Objects -> a -> a -> Element () -> Element ()
 mkBrowseResponse cfg st os numberReturned totalMatches didl =
   ( Elem (N "u:BrowseResponse") [ serviceNs "u" st ]
     [ textElement "Result" didlXml

@@ -18,9 +18,9 @@
 
 module StorableExtra ( toHexString ) where
 
-import Storable
 import Data.Word
 import Foreign.Marshal.Utils (with)
+import Foreign.Storable
 import Text.Printf
 
 -- Convert a storable to an [Word8].

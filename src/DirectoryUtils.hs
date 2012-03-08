@@ -19,10 +19,12 @@
 module DirectoryUtils ( walkTree
                       ) where
 
-import System.Directory
+import Control.Exception (catch, SomeException)
 import Control.Monad
-import System.FilePath
 import Data.List
+import Prelude hiding (catch)
+import System.Directory
+import System.FilePath
 
 -- Performs a pre-order traversal of a directory.
 -- It calls f a0 a fp for each file/directory, where
@@ -37,7 +39,7 @@ walkTree s0 f d = do
   -- we just pretend there are none.
   allNames <- catch
               (getDirectoryContents d)
-              (\e -> do
+              (\(e :: SomeException) -> do
                   putStrLn $ "Error retrieving directory contents: " ++ show e -- Log errors
                   return [])
   -- Filter out the special directories.

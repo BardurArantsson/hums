@@ -198,7 +198,7 @@ hdrAcceptRangesBytes = (CI.mk "accept-ranges", "bytes")
 hdrContentRange :: Integer -> Integer -> Integer -> Header
 hdrContentRange l h s = (CI.mk "content-range", B8.pack $ printf "%d-%d/%d" l h s)
 
-hdrContentLength :: Integral a => a -> Header
+hdrContentLength :: (Show a, Integral a) => a -> Header
 hdrContentLength l = headerContentLength $ encodeUtf8 $ T.pack $ show l
 
 -- Name of the range header.
