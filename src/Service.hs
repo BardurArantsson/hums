@@ -64,24 +64,24 @@ sanitizeXmlChars = map f
 comment :: String -> Content ()
 comment c = CMisc (Comment c) ()
 
-simpleElement :: Name -> [Content ()] -> Content ()
-simpleElement n c = CElem (Elem n [] c) ()
+simpleElement :: String -> [Content ()] -> Content ()
+simpleElement n c = CElem (Elem (N n) [] c) ()
 
-textElement :: Name -> String -> Content ()
+textElement :: String -> String -> Content ()
 textElement n t = optTextElement n $ Just t
 
 emptyElement :: Name -> Content ()
-emptyElement n = elementToContent $ Elem n [] []
+emptyElement n = elementToContent $ Elem (N n) [] []
 
 text :: String -> Content ()
 text t = CString False t ()
 
-optTextElement :: String -> Maybe String -> Content ()
+optTextElement :: Name -> Maybe String -> Content ()
 optTextElement n Nothing = comment $ printf " %s omitted" n
-optTextElement n (Just t) = elementToContent $ Elem n [] [text t]
+optTextElement n (Just t) = elementToContent $ Elem (N n) [] [text t]
 
-attribute :: Name -> String -> Attribute
-attribute n v = (n, AttValue [Left v])
+attribute :: String -> String -> Attribute
+attribute n v = (N n, AttValue [Left v])
 
 mkDocument :: Element () -> Document ()
 mkDocument rootElement =
@@ -146,7 +146,7 @@ generateServiceList services =
 generateDescription :: Configuration -> MediaServerConfiguration -> [DeviceType] -> Document ()
 generateDescription c mc services =
   (mkDocument
-   (Elem "root" [attribute "xmlns" "urn:schemas-upnp-org:device-1-0"]
+   (Elem (N "root") [attribute "xmlns" "urn:schemas-upnp-org:device-1-0"]
     [ simpleElement "specVersion"
       [ textElement "major" "1"
       , textElement "minor" "0"
@@ -176,7 +176,7 @@ generateDescription c mc services =
 
 mkBrowseResponse :: Integral a => Configuration -> DeviceType -> Objects -> a -> a -> Element () -> Element ()
 mkBrowseResponse cfg st os numberReturned totalMatches didl =
-  ( Elem "u:BrowseResponse" [ serviceNs "u" st ]
+  ( Elem (N "u:BrowseResponse") [ serviceNs "u" st ]
     [ textElement "Result" didlXml
     , textElement "NumberReturned" $ show numberReturned   -- CD/§2.7.4.2
     , textElement "TotalMatches"   $ show totalMatches     -- CD/§2.7.4.2
@@ -222,7 +222,7 @@ generateActionResponseXml :: Configuration -> DeviceType -> Objects -> ContentDi
 generateActionResponseXml _ st os ContentDirectoryGetSystemUpdateId =
   generateResponseXml body
   where
-    body = ( Elem "u:GetSystemUpdateIDResponse" [ serviceNs "u" st ]
+    body = ( Elem (N "u:GetSystemUpdateIDResponse") [ serviceNs "u" st ]
              [ textElement "Id" $ show $ systemUpdateId os ] )
 
 generateActionResponseXml cfg st os (ContentDirectoryBrowse ba) =
@@ -231,21 +231,21 @@ generateActionResponseXml cfg st os (ContentDirectoryBrowse ba) =
 generateActionResponseXml _ st _ ContentDirectoryGetSearchCapabilities =
   generateResponseXml body
   where
-    body = ( Elem "u:GetSearchCapabilitiesResponse" [ serviceNs "u" st ]
+    body = ( Elem (N "u:GetSearchCapabilitiesResponse") [ serviceNs "u" st ]
              [ emptyElement "SearchCaps" ]   -- No search capabilities (CD/§2.5.18)
            )
 
 generateActionResponseXml _ st _ ContentDirectoryGetSortCapabilities =
   generateResponseXml body
   where
-    body = ( Elem "u:GetSortCapabilitiesResponse" [ serviceNs "u" st ]
+    body = ( Elem (N "u:GetSortCapabilitiesResponse") [ serviceNs "u" st ]
              [ emptyElement "SortCaps" ]   -- No sorting capabilities (CD/§2.5.19)
            )
 
 generateSoapEnvelope :: Element () -> Document ()
 generateSoapEnvelope bodyE =
   ( mkDocument
-    ( Elem "s:Envelope" [ soapNs, soapEncodingStyle ]
+    ( Elem (N "s:Envelope") [ soapNs, soapEncodingStyle ]
       [ simpleElement "s:Body" [elementToContent bodyE] ]
     )
   )
@@ -265,7 +265,7 @@ generateObjectElement cfg objects (oid, o) =
     )
     where
       od = getObjectData o
-      en = getObjectElementName o
+      en = N $ getObjectElementName o
       ee = generateExtraElements cfg (oid,o)
       as = [ attribute "id" $ T.unpack oid
            , attribute "parentID" $ T.unpack $ objectParentId od
@@ -292,7 +292,7 @@ generateExtraElements cfg (oid, (ItemVideoMovie,d)) = generateExtraElementsForFi
 
 generateExtraElementsForFile :: Configuration -> ObjectId -> ObjectData -> [Element ()]
 generateExtraElementsForFile cfg oid d =
-  [ Elem "res"
+  [ Elem (N "res")
     [ attribute "protocolInfo" protocolInfo
     , attribute "size" $ printf "%d" $ objectFileSize d ] -- TODO: should be disabled by Transcoding flag!
     [ contentUrl ]
@@ -364,7 +364,7 @@ genItemAttributes = []
 -- Create the DIDL result object.
 mkDidl :: [Element ()] -> Element ()
 mkDidl es =
-  ( Elem "DIDL-Lite"
+  ( Elem (N "DIDL-Lite")
     [ attribute "xmlns:dc"   "http://purl.org/dc/elements/1.1/"
     , attribute "xmlns:upnp" "urn:schemas-upnp-org:metadata-1-0/upnp/"
     , attribute "xmlns"      "urn:schemas-upnp-org:metadata-1-0/DIDL-Lite/" ]

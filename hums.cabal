@@ -26,8 +26,8 @@ Executable hums
                , containers >= 0.1.0.1
                , directory >= 1.0.0.0
                , filepath >= 1.1.0.0
-               , HaXml == 1.20.*
                , haskell98
+               , HaXml >= 1.22 && <1.23
                , http-types >= 0.6 && <0.7
                , hxt >= 9.1 && < 9.2
                , MissingH >= 1.0.1
