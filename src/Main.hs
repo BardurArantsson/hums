@@ -20,13 +20,12 @@ import           Control.Concurrent
 import           Control.Monad.Error
 import           Data.ConfigFile
 import           Data.IORef
-import           Data.Maybe (fromJust)
-import qualified Data.UUID as U
-import qualified Data.UUID.V1 as U1
+import           Data.UUID ()
 import           Network.Utils
 import           Network.Wai (Application, Request(..))
 import           Network.Wai.Handler.Warp (run)
 import           System.FilePath
+import qualified System.UUID.V4 as U
 import           Text.Printf
 
 import Configuration
@@ -98,7 +97,7 @@ main = niceSocketsDo $ do
   appInfo <- getApplicationInformation
 
   -- Build configurations, etc.
-  u <- fmap (U.toString . fromJust) U1.nextUUID
+  u <- fmap show U.uuid
   putStrLn $ "My UUID is: " ++ u
   let mc = defaultMediaServerConfiguration u
   let services = [ ContentDirectoryDevice, ConnectionManagerDevice ]
