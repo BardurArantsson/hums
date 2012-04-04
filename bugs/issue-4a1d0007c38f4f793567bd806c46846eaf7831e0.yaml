@@ -1,0 +1,18 @@
+--- !ditz.rubyforge.org,2008-03-06/issue 
+title: Use "lenient" decoder for UTF-8
+desc: ""
+type: :bugfix
+component: hums
+release: 
+reporter: Bardur Arantsson <bardur@scientician.net>
+status: :unstarted
+disposition: 
+creation_time: 2012-01-19 21:32:34.736035 Z
+references: []
+
+id: 4a1d0007c38f4f793567bd806c46846eaf7831e0
+log_events: 
+- - 2012-01-19 21:32:35.455858 Z
+  - Bardur Arantsson <bardur@scientician.net>
+  - created
+  - ""
