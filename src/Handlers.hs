@@ -40,7 +40,7 @@ import           Data.IORef (IORef, readIORef)
 import           Data.Text (Text)
 import qualified Data.Text as T
 import           Data.Text.Encoding (encodeUtf8, decodeUtf8)
-import           Network.HTTP.Types (Status, Header, status206, statusServerError, statusOK, statusNotFound, headerContentType, headerContentLength, headerConnection)
+import           Network.HTTP.Types (Status, Header, partialContent206, forbidden403, notImplemented501, ok200, notFound404, headerContentType, headerContentLength, headerConnection)
 import           Network.Wai (Application, Request, Response(..), requestBody, requestHeaders, responseLBS)
 import           System.FilePath
 import           System.IO (withFile, hFileSize, IOMode(..))
@@ -90,33 +90,34 @@ serveStaticFile req mimeType fp = do
       let n = (h' - l' + 1)
       let src = (sourceFileRange fp (Just l') (Just n)) $=
                 (CL.map $ Chunk . fromByteString)
-      return $ ResponseSource status206 [ hdrContentLength n
-                                        , headerContentType mimeType
-                                        , hdrContentRange l' h' fsz
-                                        , hdrAcceptRangesBytes
-                                        , hdrConnectionClose
-                                        ] src
+      return $ ResponseSource partialContent206
+                 [ hdrContentLength n
+                 , headerContentType mimeType
+                 , hdrContentRange l' h' fsz
+                 , hdrAcceptRangesBytes
+                 , hdrConnectionClose
+                 ] src
 
     serveFile _ _ = do
       -- This requires multipart/byteranges, but we don't support that as of yet.
-      sendError statusServerError
+      sendError notImplemented501
 
 -- Handler for the root description.
 rootDescriptionHandler :: State -> ResourceT IO Response
 rootDescriptionHandler (c,mc,ai,s,_) = do
   logMessage "Got request for root description."
   let xml = generateDescriptionXml c mc s
-  return $ responseLBS statusOK [ hdrConnectionClose
-                                , hdrContentLength (L.length xml)
-                                , headerContentType "text/xml"
-                                ] xml
+  return $ responseLBS ok200 [ hdrConnectionClose
+                             , hdrContentLength (L.length xml)
+                             , headerContentType "text/xml"
+                             ] xml
 
 -- Handle static files.
 staticHandler :: Request -> String -> [Text] -> ResourceT IO Response
 staticHandler req root path = do
   logMessage $ "Got request for static content: " ++ (show path)
   if dotDot `elem` path then     -- Reject relative URLs.
-    sendError statusServerError
+    sendError forbidden403
     else
     serveStaticFile req mimeType fp
    where
@@ -138,7 +139,7 @@ contentHandler req (c,mc,ai,s,objects_) oid = do
              fp = objectFileName od
              mt = objectMimeType od
        Nothing ->
-         sendError statusNotFound
+         sendError notFound404
 
 -- Handle requests for device CONTROL urls.
 serviceControlHandler :: State -> DeviceType -> Application
@@ -158,7 +159,7 @@ serviceControlHandler (c,mc,ai,s,objects_) deviceType req = do
         ConnectionManagerAction_ cma -> handleCMA cma
       return xml_
     Nothing ->
-      sendError statusNotFound
+      sendError notFound404
   where
     handleCDA st a objects = do
       sendXml $ generateActionResponseXml c st objects a
@@ -166,12 +167,12 @@ serviceControlHandler (c,mc,ai,s,objects_) deviceType req = do
       -- TODO: This should really be implemented as it is required by
       -- the specification. However, the PS3 doesn't seem to use it at
       -- all so I don't have any way to test an implementation anyway.
-      sendError statusNotFound
+      sendError notFound404
 
 
 -- Last resort handler.
 fallbackHandler :: ResourceT IO Response
-fallbackHandler = return $ responseLBS statusNotFound [] ""
+fallbackHandler = return $ responseLBS notFound404 [] ""
 
 -- Send an empty error response.
 sendError :: Status -> ResourceT IO Response
@@ -181,10 +182,10 @@ sendError s = return $ responseLBS s [ hdrConnectionClose
 
 -- Send generated XML.
 sendXml :: L.ByteString -> ResourceT IO Response
-sendXml xml = return $ responseLBS statusOK [ hdrConnectionClose
-                                            , hdrContentLength (L.length xml)
-                                            , headerContentType "text/xml"
-                                            ] xml
+sendXml xml = return $ responseLBS ok200 [ hdrConnectionClose
+                                         , hdrContentLength (L.length xml)
+                                         , headerContentType "text/xml"
+                                         ] xml
 
 logMessage :: String -> ResourceT IO ()
 logMessage m = liftIO $ putStrLn m
