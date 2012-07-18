@@ -1,4 +1,6 @@
 *.hi
 *.o
 dist
+/.virthualenv
+/cabal-dev
 
