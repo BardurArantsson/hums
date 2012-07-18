@@ -40,7 +40,8 @@ import           Data.IORef (IORef, readIORef)
 import           Data.Text (Text)
 import qualified Data.Text as T
 import           Data.Text.Encoding (encodeUtf8, decodeUtf8)
-import           Network.HTTP.Types (Status, Header, partialContent206, forbidden403, notImplemented501, ok200, notFound404, headerContentType, headerContentLength, headerConnection)
+import           Network.HTTP.Types (Status, Header, partialContent206, forbidden403, notImplemented501, ok200, notFound404)
+import           Network.HTTP.Types.Header (hConnection, hContentLength, hContentType)
 import           Network.Wai (Application, Request, Response(..), requestBody, requestHeaders, responseLBS)
 import           System.FilePath
 import           System.IO (withFile, hFileSize, IOMode(..))
@@ -92,7 +93,7 @@ serveStaticFile req mimeType fp = do
                 (CL.map $ Chunk . fromByteString)
       return $ ResponseSource partialContent206
                  [ hdrContentLength n
-                 , headerContentType mimeType
+                 , (hContentType, mimeType)
                  , hdrContentRange l' h' fsz
                  , hdrAcceptRangesBytes
                  , hdrConnectionClose
@@ -109,7 +110,7 @@ rootDescriptionHandler (c,mc,ai,s,_) = do
   let xml = generateDescriptionXml c mc s
   return $ responseLBS ok200 [ hdrConnectionClose
                              , hdrContentLength (L.length xml)
-                             , headerContentType "text/xml"
+                             , xmlContentType
                              ] xml
 
 -- Handle static files.
@@ -184,7 +185,7 @@ sendError s = return $ responseLBS s [ hdrConnectionClose
 sendXml :: L.ByteString -> ResourceT IO Response
 sendXml xml = return $ responseLBS ok200 [ hdrConnectionClose
                                          , hdrContentLength (L.length xml)
-                                         , headerContentType "text/xml"
+                                         , xmlContentType
                                          ] xml
 
 logMessage :: String -> ResourceT IO ()
@@ -192,7 +193,7 @@ logMessage m = liftIO $ putStrLn m
 
 -- Convenience functions for DRY construction of headers.
 hdrConnectionClose :: Header
-hdrConnectionClose = headerConnection "close"
+hdrConnectionClose = (hConnection, "close")
 
 hdrAcceptRangesBytes :: Header
 hdrAcceptRangesBytes = (CI.mk "accept-ranges", "bytes")
@@ -201,9 +202,12 @@ hdrContentRange :: Integer -> Integer -> Integer -> Header
 hdrContentRange l h s = (CI.mk "content-range", B8.pack $ printf "%d-%d/%d" l h s)
 
 hdrContentLength :: (Show a, Integral a) => a -> Header
-hdrContentLength l = headerContentLength $ encodeUtf8 $ T.pack $ show l
+hdrContentLength l = (hContentLength, encodeUtf8 $ T.pack $ show l)
 
 -- Name of the range header.
 rangeHeader :: CI ByteString
 rangeHeader = CI.mk "range"
 
+-- XML content type
+xmlContentType :: Header
+xmlContentType = (hContentType, "text/xml")

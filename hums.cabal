@@ -21,13 +21,13 @@ Executable hums
   Build-Depends: base == 4.*
                , blaze-builder >= 0.3 && <0.4
                , bytestring >= 0.9.0.1
-               , conduit >= 0.4 && <0.5
+               , conduit >= 0.5 && <0.6
                , ConfigFile >= 1.0.5
                , containers >= 0.1.0.1
                , directory >= 1.0.0.0
                , filepath >= 1.1.0.0
                , HaXml >= 1.22 && <1.23
-               , http-types >= 0.6.9 && <0.7
+               , http-types >= 0.7 && <0.8
                , hxt >= 9.1 && < 9.2
                , MissingH >= 1.0.1
                , mtl == 2.0.*
@@ -37,10 +37,10 @@ Executable hums
                , text >= 0.11 && < 0.12
                , transformers >= 0.2 && < 0.3
                , unix >= 2.3.0.0
-               , unordered-containers >= 0.1 && < 0.2
+               , unordered-containers >= 0.2 && < 0.3
                , case-insensitive >= 0.4 && < 0.5
-               , wai >= 1.2 && < 1.3
-               , warp >= 1.2 && < 1.3
+               , wai >= 1.3 && < 1.4
+               , warp >= 1.3 && < 1.4
   Extensions:          Arrows
                        GeneralizedNewtypeDeriving
                        OverloadedStrings
