@@ -22,7 +22,7 @@ module DirectoryUtils ( walkTree
 import Control.Exception (catch, SomeException)
 import Control.Monad
 import Data.List
-import Prelude hiding (catch)
+import Prelude
 import System.Directory
 import System.FilePath
 

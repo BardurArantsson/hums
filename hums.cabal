@@ -28,14 +28,14 @@ Executable hums
                , filepath >= 1.1.0.0
                , HaXml >= 1.22 && <1.23
                , http-types >= 0.7 && <0.8
-               , hxt >= 9.1 && < 9.2
+               , hxt >= 9.1 && < 9.4
                , MissingH >= 1.0.1
-               , mtl == 2.0.*
-               , network >= 2.3 && < 2.4
+               , mtl >= 2.1
+               , network >= 2.3 && < 2.5
                , parsec >= 3.0 && < 3.2
                , system-uuid >= 2.1 && < 2.2
                , text >= 0.11 && < 0.12
-               , transformers >= 0.2 && < 0.3
+               , transformers >= 0.3
                , unix >= 2.3.0.0
                , unordered-containers >= 0.2 && < 0.3
                , case-insensitive >= 0.4 && < 0.5
