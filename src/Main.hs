@@ -1,6 +1,6 @@
 {-
     hums - The Haskell UPnP Server
-    Copyright (C) 2009 Bardur Arantsson <bardur@scientician.net>
+    Copyright (C) 2009,2012 Bardur Arantsson <bardur@scientician.net>
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -23,7 +23,10 @@ import           Data.IORef
 import           Data.UUID ()
 import           Network.Utils
 import           Network.Wai (Application, Request(..))
-import           Network.Wai.Handler.Warp (run)
+import           Network.Wai.Handler.Warp (runSettings,
+                                           defaultSettings,
+                                           settingsTimeout,
+                                           settingsPort)
 import           System.FilePath
 import qualified System.UUID.V4 as U
 import           Text.Printf
@@ -105,7 +108,11 @@ main = niceSocketsDo $ do
 
   -- Start serving.
   putStrLn "Establishing HTTP server..."
-  _ <- forkIO $ run (httpServerPort c) (application st dataDirectory)
+  _ <- forkIO $ do
+         let settings = defaultSettings { settingsPort = (httpServerPort c)
+                                        , settingsTimeout = 86400
+                                        }
+         runSettings settings (application st dataDirectory)
   _ <- putStrLn "Done."
 
   -- Start broadcasting alive messages.
