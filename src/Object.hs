@@ -42,6 +42,7 @@ import           Data.Word (Word8)
 import           Filesystem.Path (FilePath, dropExtension, filename)
 import           Filesystem.Path.CurrentOS (encode)
 import           Prelude hiding (FilePath)
+import           System.Posix.ByteString (FileStatus)
 import qualified System.Posix.ByteString as P
 import           Text.Printf
 
@@ -136,8 +137,8 @@ findExistingByObjectId oid os =
       Nothing -> error $ printf "Couldn't find object '%s'" $ T.unpack oid
 
 -- Accumulator function for building the basic list of files/directories.
-scanFile :: [(ObjectId, Object)] -> [(ObjectId, Object)] -> FilePath -> IO [(ObjectId, Object)]
-scanFile parentObjects objects fp = do
+scanFile :: [(ObjectId, Object)] -> [(ObjectId, Object)] -> FileStatus -> FilePath -> IO [(ObjectId, Object)]
+scanFile parentObjects objects st fp = do
   -- Find parent's object Id.
   let kp = case parentObjects of
              [] -> rootObjectId
@@ -145,7 +146,6 @@ scanFile parentObjects objects fp = do
   -- Compute object id for the directory entry.
   -- FIXME: Should handle 'file gone missing' -- simply don't prepend an
   -- object in that case.
-  st <- P.getFileStatus $ encode fp
   deviceId <- toHexString $ P.deviceID st
   fileId <- toHexString $ P.fileID st
   let oid = T.pack $ printf "%s,%s" deviceId fileId

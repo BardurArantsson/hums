@@ -23,10 +23,12 @@ import           Control.Exception (catch, SomeException)
 import           Control.Monad
 import           Data.List
 import qualified Data.Text as T
-import qualified Filesystem as FS
+import           Filesystem (listDirectory)
 import           Filesystem.Path (FilePath, filename)
-import           Filesystem.Path.CurrentOS (toText)
+import           Filesystem.Path.CurrentOS (toText, encode)
 import           Prelude hiding (FilePath)
+import           System.Posix.ByteString (FileStatus)
+import qualified System.Posix.ByteString as P
 
 -- Sorting function.
 compareNames :: FilePath -> FilePath -> Ordering
@@ -39,13 +41,13 @@ compareNames a b = compare (f a) (f b) where
 -- of iteration of the parent directory, a is the
 -- current value of the accumulator and fp is the
 -- file name of the file/directory being visited.
-walkTree :: a -> (a -> a -> FilePath -> IO a) -> FilePath -> IO a
+walkTree :: a -> (a -> a -> FileStatus -> FilePath -> IO a) -> FilePath -> IO a
 walkTree s0 f d = do
   -- FIXME: Need to detect loops!
   -- Get files and directories in directory. If that fails
   -- we just pretend there are none.
   allNames <- catch
-              (FS.listDirectory d)
+              (listDirectory d)
               (\(e :: SomeException) -> do
                   putStrLn $ "Error retrieving directory contents: " ++ show e -- Log errors
                   return [])
@@ -55,16 +57,14 @@ walkTree s0 f d = do
   foldM traverse s0 sortedNames
   where
     traverse s n = do
-      isFile <- FS.isFile n
-      case isFile of
-        True -> f s0 s n
-        False -> do
-          isDirectory <- FS.isDirectory n
-          case isDirectory of
-            True -> do
-              s' <- f s0 s n
-              walkTree s' f n
-            False -> do
+      st <- P.getFileStatus $ encode n
+      if P.isRegularFile st
+        then f s0 s st n
+        else if P.isDirectory st
+          then do
+             s' <- f s0 s st n
+             walkTree s' f n
+          else do
               -- Not a directory nor an existing file. Conclusion: A dead symlink.
               putStrLn $ "Ignoring dead symbolic link: " ++ (show n)
               return s
