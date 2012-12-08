@@ -1,6 +1,6 @@
 {-
     hums - The Haskell UPnP Server
-    Copyright (C) 2009 Bardur Arantsson <bardur@scientician.net>
+    Copyright (C) 2009, 2012 Bardur Arantsson <bardur@scientician.net>
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -24,13 +24,16 @@ module Configuration ( Configuration(..)
                      , parseConfiguration
                      ) where
 
-import System.Posix.Unistd (SystemID(..), getSystemID)
-import Text.Printf
-import Network.URI (URI, parseURI)
-import Data.ConfigFile
-import Control.Monad.Error
-import Data.Either.Utils
-import Data.Maybe
+import           Control.Monad.Error
+import           Data.ConfigFile
+import           Data.Either.Utils
+import           Data.Maybe
+import           Filesystem.Path (FilePath)
+import           Filesystem.Path.CurrentOS (decodeString, encodeString)
+import           Network.URI (URI, parseURI)
+import           Prelude hiding (FilePath)
+import           System.Posix.Unistd (SystemID(..), getSystemID)
+import           Text.Printf
 
 {-
 
@@ -45,7 +48,7 @@ data Configuration =
                   , enableDeviceIcon :: Bool
                   , useDlna :: Bool
                   , dlnaProfileName :: Maybe String -- Only used when useDlna is available.
-                  , rootDirectory :: String
+                  , rootDirectory :: FilePath
                   }
     deriving (Show)
 
@@ -96,10 +99,10 @@ getServerHeaderValue :: ApplicationInformation -> String
 getServerHeaderValue (ApplicationInformation on ov an av) =
     printf "%s/%s, UPnP/1.0, %s/%s" on ov an av
 
-parseConfiguration :: ConfigParser -> String -> IO Configuration
+parseConfiguration :: ConfigParser -> FilePath -> IO Configuration
 parseConfiguration cp0 cfname = do
   cfg <- runErrorT $ do
-           cf <- join $ liftIO $ readfile cp0 cfname
+           cf <- join $ liftIO $ readfile cp0 (encodeString cfname)
            ip <- get cf networkSection "listen_ip"
            port <- get cf networkSection "listen_port"
            rootDirectory_ <- get cf defaultSection "root_directory"
@@ -110,7 +113,7 @@ parseConfiguration cp0 cfname = do
                       , enableDeviceIcon = True
                       , useDlna = True
                       , dlnaProfileName = Nothing
-                      , rootDirectory = rootDirectory_ }
+                      , rootDirectory = decodeString rootDirectory_ }
   return $ forceEither cfg
   where
     defaultSection = "DEFAULT"

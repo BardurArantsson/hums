@@ -1,6 +1,6 @@
 {-
     hums - The Haskell UPnP Server
-    Copyright (C) 2009 Bardur Arantsson <bardur@scientician.net>
+    Copyright (C) 2009, 2012 Bardur Arantsson <bardur@scientician.net>
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -32,13 +32,17 @@ module Object ( Objects( systemUpdateId )
 
 import           Action
 import           Data.ByteString (ByteString, isPrefixOf)
-import           Data.Char (isAscii)
+import qualified Data.ByteString as B
+import qualified Data.ByteString.Char8 as B8
 import           Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as H
 import qualified Data.Text as T
 import           Data.Int
-import           System.FilePath
-import           System.Posix
+import           Data.Word (Word8)
+import           Filesystem.Path (FilePath, dropExtension, filename)
+import           Filesystem.Path.CurrentOS (encode)
+import           Prelude hiding (FilePath)
+import qualified System.Posix.ByteString as P
 import           Text.Printf
 
 import DirectoryUtils
@@ -141,19 +145,19 @@ scanFile parentObjects objects fp = do
   -- Compute object id for the directory entry.
   -- FIXME: Should handle 'file gone missing' -- simply don't prepend an
   -- object in that case.
-  st <- getFileStatus fp
-  deviceId <- toHexString $ deviceID st
-  fileId <- toHexString $ fileID st
+  st <- P.getFileStatus $ encode fp
+  deviceId <- toHexString $ P.deviceID st
+  fileId <- toHexString $ P.fileID st
   let oid = T.pack $ printf "%s,%s" deviceId fileId
   -- Compute the update ID.
-  let lastModified = round' $ toRational $ modificationTime st
+  let lastModified = round' $ toRational $ P.modificationTime st
   -- Compute file size.
-  let sz = (fromIntegral . System.Posix.fileSize) st
+  let sz = (fromIntegral . P.fileSize) st
   -- Compute object title.
-  let mapExt = if isDirectory st then id else dropExtension
-      _title = map replaceNonAscii $ mapExt $ takeFileName fp
+  let mapExt = if P.isDirectory st then id else dropExtension
+      _title = B8.unpack $ B.map replaceNonAscii $ encode $ mapExt $ filename fp
   -- Start by guessing mime type.
-  let mimeType = if isDirectory st then
+  let mimeType = if P.isDirectory st then
                      "inode/directory"       -- Directories are special.
                  else guessMimeType fp
   -- Construct object data.
@@ -165,10 +169,10 @@ scanFile parentObjects objects fp = do
   where
     round' :: Rational -> Int64          -- Dummy to avoid warning
     round' = round
-    -- Replace non-ASCII characters to work around encoding issues.
-    replaceNonAscii :: Char -> Char
-    replaceNonAscii c | isAscii c = c
-    replaceNonAscii _             = '?'
+    -- Replace non-printable characters to work around encoding issues.
+    replaceNonAscii :: Word8 -> Word8
+    replaceNonAscii c | (c >= 0x20) && (c <= 0x7E) = c
+    replaceNonAscii _                              = 0x3F
 
 -- Function for building the Object tree structure.
 scanDirectory :: FilePath -> IO Objects

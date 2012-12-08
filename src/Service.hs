@@ -1,6 +1,6 @@
 {-
     hums - The Haskell UPnP Server
-    Copyright (C) 2009 Bardur Arantsson <bardur@scientician.net>
+    Copyright (C) 2009, 2012 Bardur Arantsson <bardur@scientician.net>
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -120,7 +120,7 @@ generateIconList False = comment " omitted device icon list "
 generateIconList True =
   (simpleElement "iconList"
    [ simpleElement "icon"
-     [ textElement "mimetype" $ B8.unpack $ guessMimeType imageUrl
+     [ textElement "mimetype"   imageMimeType
      , textElement "width"      "240"
      , textElement "height"     "240"
      , textElement "url"        imageUrl
@@ -128,6 +128,7 @@ generateIconList True =
    ])
     where
       imageUrl = "/static/images/hums.jpg"
+      imageMimeType = B8.unpack imageJpeg
 
 generateServiceList :: [DeviceType] -> Content ()
 generateServiceList services =

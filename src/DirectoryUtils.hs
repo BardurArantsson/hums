@@ -1,6 +1,6 @@
 {-
     hums - The Haskell UPnP Server
-    Copyright (C) 2009 Bardur Arantsson <bardur@scientician.net>
+    Copyright (C) 2009, 2012 Bardur Arantsson <bardur@scientician.net>
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -19,12 +19,19 @@
 module DirectoryUtils ( walkTree
                       ) where
 
-import Control.Exception (catch, SomeException)
-import Control.Monad
-import Data.List
-import Prelude
-import System.Directory
-import System.FilePath
+import           Control.Exception (catch, SomeException)
+import           Control.Monad
+import           Data.List
+import qualified Data.Text as T
+import qualified Filesystem as FS
+import           Filesystem.Path (FilePath, filename)
+import           Filesystem.Path.CurrentOS (toText)
+import           Prelude hiding (FilePath)
+
+-- Sorting function.
+compareNames :: FilePath -> FilePath -> Ordering
+compareNames a b = compare (f a) (f b) where
+    f = T.toCaseFold . either id id . toText . filename
 
 -- Performs a pre-order traversal of a directory.
 -- It calls f a0 a fp for each file/directory, where
@@ -38,23 +45,21 @@ walkTree s0 f d = do
   -- Get files and directories in directory. If that fails
   -- we just pretend there are none.
   allNames <- catch
-              (getDirectoryContents d)
+              (FS.listDirectory d)
               (\(e :: SomeException) -> do
                   putStrLn $ "Error retrieving directory contents: " ++ show e -- Log errors
                   return [])
-  -- Filter out the special directories.
-  let names = sort $ filter (not . isSpecialDirectory) allNames
-  -- Produce full names.
-  let fullNames = map (combine d) names
+  -- Sort
+  let sortedNames = sortBy compareNames allNames
   -- Traverse subdirectories and return accumulator.
-  foldM traverse s0 fullNames
+  foldM traverse s0 sortedNames
   where
     traverse s n = do
-      isFile <- doesFileExist n
+      isFile <- FS.isFile n
       case isFile of
         True -> f s0 s n
         False -> do
-          isDirectory <- doesDirectoryExist n
+          isDirectory <- FS.isDirectory n
           case isDirectory of
             True -> do
               s' <- f s0 s n
@@ -63,7 +68,3 @@ walkTree s0 f d = do
               -- Not a directory nor an existing file. Conclusion: A dead symlink.
               putStrLn $ "Ignoring dead symbolic link: " ++ (show n)
               return s
-
-    isSpecialDirectory ".." = True
-    isSpecialDirectory "." = True
-    isSpecialDirectory _   = False

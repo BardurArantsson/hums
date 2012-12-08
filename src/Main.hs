@@ -27,7 +27,9 @@ import           Network.Wai.Handler.Warp (runSettings,
                                            defaultSettings,
                                            settingsTimeout,
                                            settingsPort)
-import           System.FilePath
+import           Filesystem.Path (FilePath, (</>))
+import           Filesystem.Path.CurrentOS (decodeString, encodeString)
+import           Prelude hiding (FilePath)
 import qualified System.UUID.V4 as U
 import           Text.Printf
 
@@ -58,20 +60,20 @@ periodicUpdate a doUpdate =
     threadDelay 120000000      -- Every 120 seconds should be more than enough.
     writeIORef a =<< doUpdate  -- Atomic replace
 
-scanOnce :: String -> IO Objects
+scanOnce :: FilePath -> IO Objects
 scanOnce directory = do
-    putStrLn $ printf "Scanning directory '%s'" directory
+    putStrLn $ printf "Scanning directory '%s'" $ encodeString directory
     objects <- scanDirectory directory
     putStrLn $ printf "Scanning completed"
     return objects
 
-application :: State -> String -> Application
+application :: State -> FilePath -> Application
 application state dataDirectory request = do
   case pathInfo request of
     ["description.xml"] ->
       rootDescriptionHandler state
     ("static" : path) ->
-      staticHandler request (dataDirectory </> "www") path
+      staticHandler request (dataDirectory </> staticDir) path
     ("dynamic" : "services" : "ContentDirectory" : "control" : _) ->
       serviceControlHandler state ContentDirectoryDevice request
     ("dynamic" : "services" : "ConnectionManager" : "control" : _) ->
@@ -80,15 +82,17 @@ application state dataDirectory request = do
       contentHandler request state objectId
     _ ->
       fallbackHandler
+  where
+    staticDir = decodeString "www"
 
 main :: IO ()
 main = niceSocketsDo $ do
 
   -- Get the data directory.
-  dataDirectory <- getDataFileName "."
+  dataDirectory <- fmap decodeString $ getDataFileName "."
 
   -- Parse configuration.
-  c <- parseConfiguration emptyCP $ dataDirectory </> "hums.cfg"
+  c <- parseConfiguration emptyCP $ dataDirectory </> (decodeString "hums.cfg")
   print c
 
   -- Scan objects once at the start.

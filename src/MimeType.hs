@@ -1,6 +1,6 @@
 {-
     hums - The Haskell UPnP Server
-    Copyright (C) 2009 Bardur Arantsson <bardur@scientician.net>
+    Copyright (C) 2009, 2012 Bardur Arantsson <bardur@scientician.net>
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -17,26 +17,36 @@
 -}
 
 module MimeType ( guessMimeType
+                , imageJpeg
                 ) where
 
 import Data.ByteString (ByteString)
 import Data.ByteString.Char8 ()
-import System.FilePath
+import Data.Text (Text)
+import Filesystem.Path (FilePath, extension)
+import Prelude hiding (FilePath)
 
 -- A primitive MIME type guesser. We use a custom one instead of the
 -- relatively standard /etc/mime.types since UPnP media server clients
 -- can be finicky about which MIME types they accept.
 guessMimeType :: FilePath -> ByteString
 guessMimeType fp =
-    mimeType $ takeExtension fp
+    case extension fp of
+      Nothing -> defaultMimeType
+      Just ext -> mimeType ext
     where
-      mimeType :: String -> ByteString
-      mimeType ".xml"  = "text/xml"
-      mimeType ".avi"  = "video/divx"   -- PlayStation 3 oddity ('x-msvideo' is standard)
-      mimeType ".mp3"  = "audio/mpeg"
-      mimeType ".mpg"  = "video/mpeg"
-      mimeType ".m2ts" = "video/mpeg"
-      mimeType ".m2t"  = "video/mpeg"
-      mimeType ".jpg"  = "image/jpeg"
-      mimeType ".mp4"  = "video/mp4"
-      mimeType _       = "application/octet-stream" -- Reasonable default
+      mimeType :: Text -> ByteString
+      mimeType "xml"  = "text/xml"
+      mimeType "avi"  = "video/divx"   -- PlayStation 3 oddity ('x-msvideo' is standard)
+      mimeType "mp3"  = "audio/mpeg"
+      mimeType "mpg"  = "video/mpeg"
+      mimeType "m2ts" = "video/mpeg"
+      mimeType "m2t"  = "video/mpeg"
+      mimeType "jpg"  = imageJpeg
+      mimeType "mp4"  = "video/mp4"
+      mimeType _      = defaultMimeType
+      defaultMimeType = "application/octet-stream"
+
+-- JPEG image mime type
+imageJpeg :: ByteString
+imageJpeg = "image/jpeg"

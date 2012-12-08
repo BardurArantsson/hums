@@ -1,6 +1,6 @@
 {-
     hums - The Haskell UPnP Server
-    Copyright (C) 2009 Bardur Arantsson <bardur@scientician.net>
+    Copyright (C) 2009, 2012 Bardur Arantsson <bardur@scientician.net>
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -43,8 +43,10 @@ import           Data.Text.Encoding (encodeUtf8, decodeUtf8)
 import           Network.HTTP.Types (Status, Header, partialContent206, forbidden403, notImplemented501, ok200, notFound404)
 import           Network.HTTP.Types.Header (hConnection, hContentLength, hContentType)
 import           Network.Wai (Application, Request, Response(..), requestBody, requestHeaders, responseLBS)
-import           System.FilePath
-import           System.IO (withFile, hFileSize, IOMode(..))
+import           Filesystem.Path (FilePath, (</>))
+import           Filesystem.Path.CurrentOS (encodeString, fromText)
+import qualified Filesystem as FS
+import           Prelude hiding (FilePath)
 import           Text.Printf (printf)
 
 import           Soap
@@ -70,26 +72,24 @@ type State = (Configuration, MediaServerConfiguration, ApplicationInformation, [
 
 -}
 
-fileSize :: FilePath -> IO Integer
-fileSize fp =
-  withFile fp ReadMode $ \h -> hFileSize h
-
 serveStaticFile :: Request -> ByteString -> FilePath -> ResourceT IO Response
 serveStaticFile req mimeType fp = do
-  logMessage $ printf "Serving file '%s'..." fp
+  logMessage $ printf "Serving file '%s'..." $ sfp
   -- Do we have a range header?
   let ranges = case lookup rangeHeader $ requestHeaders req of
         Just value -> parseRangeHeader $ B8.unpack value
         Nothing    -> [(Nothing, Nothing)] -- whole file
   -- Serve the ranges.
-  fsz <- lift $ fileSize fp
+  fsz <- lift $ FS.getSize fp
   serveFile fsz ranges
   where
+    sfp = encodeString fp
+
     serveFile fsz [(l,h)] = do
       let l' = maybe 0 id l
       let h' = maybe (fsz-1) id h
       let n = (h' - l' + 1)
-      let src = (sourceFileRange fp (Just l') (Just n)) $=
+      let src = (sourceFileRange sfp (Just l') (Just n)) $=
                 (CL.map $ Chunk . fromByteString)
       return $ ResponseSource partialContent206
                  [ hdrContentLength n
@@ -114,7 +114,7 @@ rootDescriptionHandler (c,mc,ai,s,_) = do
                              ] xml
 
 -- Handle static files.
-staticHandler :: Request -> String -> [Text] -> ResourceT IO Response
+staticHandler :: Request -> FilePath -> [Text] -> ResourceT IO Response
 staticHandler req root path = do
   logMessage $ "Got request for static content: " ++ (show path)
   if dotDot `elem` path then     -- Reject relative URLs.
@@ -122,7 +122,7 @@ staticHandler req root path = do
     else
     serveStaticFile req mimeType fp
    where
-     fp = foldl (</>) root (map T.unpack path)
+     fp = foldl (</>) root (map fromText path)
      mimeType = guessMimeType fp
      dotDot = ".."
 
