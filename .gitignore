@@ -1,7 +1,8 @@
 *.hi
 *.o
-dist
+/dist*
 /.virthualenv
 /.cabal-sandbox
 /cabal-dev
 /cabal.sandbox.config
+/.hsenv*
