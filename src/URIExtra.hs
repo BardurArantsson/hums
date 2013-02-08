@@ -20,7 +20,7 @@ module URIExtra ( mkURIReference
                 , mkURI
                 ) where
 
-import Network.URI
+import Network.URI (URI, relativeTo, parseRelativeReference, escapeURIString, isUnescapedInURI)
 import Data.Maybe
 import Data.List
 
@@ -53,4 +53,4 @@ mkURI ss u =
 
 mkURI' :: URI -> [URI] -> URI
 mkURI' =
-    foldl (\a r -> fromJust $ r `relativeTo` a)
+    foldl (\a r -> r `relativeTo` a)
