@@ -21,7 +21,6 @@ module URIExtra ( mkURIReference
                 ) where
 
 import Network.URI (URI, relativeTo, parseRelativeReference, escapeURIString, isUnescapedInURI)
-import Data.Maybe
 import Data.List
 
 -- Create an URI reference (absolute or relative URI with optional fragment identifier)
