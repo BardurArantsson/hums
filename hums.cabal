@@ -36,7 +36,7 @@ Executable hums
                , system-uuid >= 2.1 && < 2.2
                , system-filepath >= 0.4.7 && < 0.5
                , system-fileio >= 0.3.10 && < 0.4
-               , text >= 0.11 && < 0.12
+               , text >= 0.11 && < 2
                , transformers >= 0.3
                , unix >= 2.5.0.0
                , unordered-containers >= 0.2 && < 0.3
