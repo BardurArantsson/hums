@@ -25,28 +25,27 @@ module Handlers ( rootDescriptionHandler
                 ) where
 
 import           Blaze.ByteString.Builder (fromByteString)
-import           Control.Monad.IO.Class (MonadIO, liftIO)
-import           Control.Monad.Trans.Class (lift)
 import           Data.ByteString (ByteString)
 import qualified Data.ByteString as S
 import qualified Data.ByteString.Char8 as B8
 import qualified Data.ByteString.Lazy as L
 import           Data.CaseInsensitive (CI)
 import qualified Data.CaseInsensitive as CI
-import           Data.Conduit (ResourceT, Flush(..), ($$), ($=))
+import           Data.Conduit (Flush(..), ($$), mapOutput)
 import qualified Data.Conduit.List as CL
-import           Data.Conduit.Binary (sourceFileRange)
+import           Data.Conduit.Binary (sourceHandleRange)
 import           Data.IORef (IORef, readIORef)
 import           Data.Text (Text)
 import qualified Data.Text as T
 import           Data.Text.Encoding (encodeUtf8, decodeUtf8)
 import           Network.HTTP.Types (Status, Header, partialContent206, forbidden403, notImplemented501, ok200, notFound404)
 import           Network.HTTP.Types.Header (hConnection, hContentLength, hContentType)
-import           Network.Wai (Application, Request, Response(..), requestBody, requestHeaders, responseLBS)
+import           Network.Wai (Application, Request, Response, responseSourceBracket, requestBody, requestHeaders, responseLBS)
 import           Filesystem.Path (FilePath, (</>))
 import           Filesystem.Path.CurrentOS (encodeString, fromText)
 import qualified Filesystem as FS
 import           Prelude hiding (FilePath)
+import qualified System.IO as IO
 import           Text.Printf (printf)
 
 import           Soap
@@ -72,7 +71,7 @@ type State = (Configuration, MediaServerConfiguration, ApplicationInformation, [
 
 -}
 
-serveStaticFile :: Request -> ByteString -> FilePath -> ResourceT IO Response
+serveStaticFile :: Request -> ByteString -> FilePath -> IO Response
 serveStaticFile req mimeType fp = do
   logMessage $ printf "Serving file '%s'..." $ sfp
   -- Do we have a range header?
@@ -80,31 +79,34 @@ serveStaticFile req mimeType fp = do
         Just value -> parseRangeHeader $ B8.unpack value
         Nothing    -> [(Nothing, Nothing)] -- whole file
   -- Serve the ranges.
-  fsz <- lift $ FS.getSize fp
-  serveFile fsz ranges
+  fsz <- FS.getSize fp
+  response <- serveFile fsz ranges
+  return $ response
   where
+    sfp :: String
     sfp = encodeString fp
 
     serveFile fsz [(l,h)] = do
       let l' = maybe 0 id l
       let h' = maybe (fsz-1) id h
       let n = (h' - l' + 1)
-      let src = (sourceFileRange sfp (Just l') (Just n)) $=
-                (CL.map $ Chunk . fromByteString)
-      return $ ResponseSource partialContent206
-                 [ hdrContentLength n
+      let hdrs = [ hdrContentLength n
                  , (hContentType, mimeType)
                  , hdrContentRange l' h' fsz
                  , hdrAcceptRangesBytes
-                 , hdrConnectionClose
-                 ] src
+                 , hdrConnectionClose ]
+      let src hnd = mapOutput (Chunk . fromByteString) $ sourceHandleRange hnd (Just l') (Just n)
+      responseSourceBracket
+         (IO.openFile sfp IO.ReadMode)
+         (IO.hClose)
+         (\hnd -> return (partialContent206, hdrs, src hnd))
 
     serveFile _ _ = do
       -- This requires multipart/byteranges, but we don't support that as of yet.
       sendError notImplemented501
 
 -- Handler for the root description.
-rootDescriptionHandler :: State -> ResourceT IO Response
+rootDescriptionHandler :: State -> IO Response
 rootDescriptionHandler (c,mc,ai,s,_) = do
   logMessage "Got request for root description."
   let xml = generateDescriptionXml c mc s
@@ -114,7 +116,7 @@ rootDescriptionHandler (c,mc,ai,s,_) = do
                              ] xml
 
 -- Handle static files.
-staticHandler :: Request -> FilePath -> [Text] -> ResourceT IO Response
+staticHandler :: Request -> FilePath -> [Text] -> IO Response
 staticHandler req root path = do
   logMessage $ "Got request for static content: " ++ (show path)
   if dotDot `elem` path then     -- Reject relative URLs.
@@ -127,9 +129,9 @@ staticHandler req root path = do
      dotDot = ".."
 
 -- Handle requests for content.
-contentHandler :: Request -> State -> Text -> ResourceT IO Response
+contentHandler :: Request -> State -> Text -> IO Response
 contentHandler req (c,mc,ai,s,objects_) oid = do
-  objects <- lift $ readIORef objects_     -- Current snapshot of object tree.
+  objects <- readIORef objects_     -- Current snapshot of object tree.
   logMessage $ printf "Got request for CONTENT for objectId=%s" (T.unpack oid)
   -- Serve the file which the object maps to.
   case findByObjectId oid objects of
@@ -145,12 +147,12 @@ contentHandler req (c,mc,ai,s,objects_) oid = do
 -- Handle requests for device CONTROL urls.
 serviceControlHandler :: State -> DeviceType -> Application
 serviceControlHandler (c,mc,ai,s,objects_) deviceType req = do
-  objects <- lift $ readIORef objects_      -- Current snapshot of object tree.
+  objects <- readIORef objects_      -- Current snapshot of object tree.
   logMessage $ printf "Got request for CONTROL for service '%s'" $ deviceTypeToString deviceType
   -- Parse the SOAP request
   requestXml <- fmap S.concat $ requestBody req $$ CL.consume
   logMessage $ "Request: " ++ (show requestXml)
-  action <- lift $ parseControlSoapXml $ T.unpack $ decodeUtf8 requestXml
+  action <- parseControlSoapXml $ T.unpack $ decodeUtf8 requestXml
   logMessage $ "Action: " ++ (show action)
   -- Deal with the action
   case action of
@@ -172,24 +174,24 @@ serviceControlHandler (c,mc,ai,s,objects_) deviceType req = do
 
 
 -- Last resort handler.
-fallbackHandler :: ResourceT IO Response
+fallbackHandler :: IO Response
 fallbackHandler = return $ responseLBS notFound404 [] ""
 
 -- Send an empty error response.
-sendError :: Status -> ResourceT IO Response
+sendError :: Status -> IO Response
 sendError s = return $ responseLBS s [ hdrConnectionClose
                                      , hdrContentLength (0 :: Integer)
                                      ] ""
 
 -- Send generated XML.
-sendXml :: L.ByteString -> ResourceT IO Response
+sendXml :: L.ByteString -> IO Response
 sendXml xml = return $ responseLBS ok200 [ hdrConnectionClose
                                          , hdrContentLength (L.length xml)
                                          , xmlContentType
                                          ] xml
 
-logMessage :: String -> ResourceT IO ()
-logMessage m = liftIO $ putStrLn m
+logMessage :: String -> IO ()
+logMessage m = putStrLn m
 
 -- Convenience functions for DRY construction of headers.
 hdrConnectionClose :: Header

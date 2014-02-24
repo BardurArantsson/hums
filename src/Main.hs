@@ -25,8 +25,8 @@ import           Network.Utils
 import           Network.Wai (Application, Request(..))
 import           Network.Wai.Handler.Warp (runSettings,
                                            defaultSettings,
-                                           settingsTimeout,
-                                           settingsPort)
+                                           setTimeout,
+                                           setPort)
 import           Filesystem.Path (FilePath, (</>))
 import           Filesystem.Path.CurrentOS (decodeString, encodeString)
 import           Prelude hiding (FilePath)
@@ -113,9 +113,9 @@ main = niceSocketsDo $ do
   -- Start serving.
   putStrLn "Establishing HTTP server..."
   _ <- forkIO $ do
-         let settings = defaultSettings { settingsPort = (httpServerPort c)
-                                        , settingsTimeout = 86400
-                                        }
+         let settings = setPort (httpServerPort c) $
+                        setTimeout 86400 $
+                        defaultSettings
          runSettings settings (application st dataDirectory)
   _ <- putStrLn "Done."
 
