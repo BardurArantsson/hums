@@ -8,8 +8,10 @@
 -- Switch to using "filemanip" System.FilePath.Find instead of
   hand-rolled directory traversal...? MTL dependency could be a problem...
 
--- Config.Dyre for recompiling?
--- FIXME: Remove ConfigFile and mtl for Config.Dyre.
+-- Object.hs/scanFile: Should handle 'file gone missing' -- simply
+   don't prepend an object in that case.
+
+-- DirectoryUtils: walkTree should detect loops (via symlinks or "circular mount" structures).
 
 -- Change the "dynamic/services/%s/control" bits of Service.hs to a common
   function which can be used to also generate the routes.

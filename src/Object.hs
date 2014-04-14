@@ -144,8 +144,6 @@ scanFile parentObjects objects st fp = do
              [] -> rootObjectId
              ((oid,_):_) -> oid
   -- Compute object id for the directory entry.
-  -- FIXME: Should handle 'file gone missing' -- simply don't prepend an
-  -- object in that case.
   deviceId <- toHexString $ P.deviceID st
   fileId <- toHexString $ P.fileID st
   let oid = T.pack $ printf "%s,%s" deviceId fileId

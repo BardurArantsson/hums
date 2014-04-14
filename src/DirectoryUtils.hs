@@ -43,7 +43,6 @@ compareNames a b = compare (f a) (f b) where
 -- file name of the file/directory being visited.
 walkTree :: a -> (a -> a -> FileStatus -> FilePath -> IO a) -> FilePath -> IO a
 walkTree s0 f d = do
-  -- FIXME: Need to detect loops!
   -- Get files and directories in directory. If that fails
   -- we just pretend there are none.
   allNames <- catch
