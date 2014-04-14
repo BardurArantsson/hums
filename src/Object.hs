@@ -36,6 +36,7 @@ import qualified Data.ByteString as B
 import qualified Data.ByteString.Char8 as B8
 import           Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as H
+import           Data.List (foldl')
 import qualified Data.Text as T
 import           Data.Int
 import           Data.Word (Word8)
@@ -181,7 +182,7 @@ scanDirectory d = do
   -- Construct the objects map.
   return Objects
              { mapIdToObject = H.fromList o'
-             , mapParentToChildren = foldl p2c H.empty o'
+             , mapParentToChildren = foldl' p2c H.empty o'
              , systemUpdateId = maximum $ map (objectLastModified . getObjectData . snd) o'
              }
   where

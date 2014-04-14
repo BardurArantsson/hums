@@ -35,6 +35,7 @@ import           Data.Conduit (Flush(..), ($$), mapOutput)
 import qualified Data.Conduit.List as CL
 import           Data.Conduit.Binary (sourceHandleRange)
 import           Data.IORef (IORef, readIORef)
+import           Data.List (foldl')
 import           Data.Text (Text)
 import qualified Data.Text as T
 import           Data.Text.Encoding (encodeUtf8, decodeUtf8)
@@ -124,7 +125,7 @@ staticHandler req root path = do
     else
     serveStaticFile req mimeType fp
    where
-     fp = foldl (</>) root (map fromText path)
+     fp = foldl' (</>) root (map fromText path)
      mimeType = guessMimeType fp
      dotDot = ".."
 

@@ -21,7 +21,7 @@ module URIExtra ( mkURIReference
                 ) where
 
 import Network.URI (URI, relativeTo, parseRelativeReference, escapeURIString, isUnescapedInURI)
-import Data.List
+import Data.List (foldl', isSuffixOf)
 
 -- Create an URI reference (absolute or relative URI with optional fragment identifier)
 -- from an arbitrary string. The string is URI-encoded if necessary.
@@ -52,4 +52,4 @@ mkURI ss u =
 
 mkURI' :: URI -> [URI] -> URI
 mkURI' =
-    foldl (\a r -> r `relativeTo` a)
+    foldl' (\a r -> r `relativeTo` a)
