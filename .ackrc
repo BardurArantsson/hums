@@ -1,0 +1,2 @@
+--ignore-dir=.cabal-sandbox
+--ignore-dir=dist
