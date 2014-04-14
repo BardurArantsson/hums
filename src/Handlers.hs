@@ -156,22 +156,15 @@ serviceControlHandler (c,mc,ai,s,objects_) deviceType req = do
   logMessage $ "Action: " ++ (show action)
   -- Deal with the action
   case action of
-    Just a -> do
-      xml_ <- case a of
-        ContentDirectoryAction_ cda  -> handleCDA deviceType cda objects
-        ConnectionManagerAction_ cma -> handleCMA cma
-      return xml_
-    Nothing ->
-      sendError notFound404
-  where
-    handleCDA st a objects = do
-      sendXml $ generateActionResponseXml c st objects a
-    handleCMA _ =
+    Just (ContentDirectoryAction_ cda) ->
+      sendXml $ generateActionResponseXml c deviceType objects cda
+    Just (ConnectionManagerAction_ cma) ->
       -- TODO: This should really be implemented as it is required by
       -- the specification. However, the PS3 doesn't seem to use it at
       -- all so I don't have any way to test an implementation anyway.
       sendError notFound404
-
+    Nothing ->
+      sendError notFound404
 
 -- Last resort handler.
 fallbackHandler :: IO Response
