@@ -29,7 +29,6 @@ import           Data.ByteString (ByteString)
 import qualified Data.ByteString as S
 import qualified Data.ByteString.Char8 as B8
 import qualified Data.ByteString.Lazy as L
-import           Data.CaseInsensitive (CI)
 import qualified Data.CaseInsensitive as CI
 import           Data.Conduit (Flush(..), ($$), mapOutput)
 import qualified Data.Conduit.List as CL
@@ -39,9 +38,9 @@ import           Data.List (foldl')
 import           Data.Text (Text)
 import qualified Data.Text as T
 import           Data.Text.Encoding (encodeUtf8, decodeUtf8)
-import           Network.HTTP.Types (Status, Header, partialContent206, forbidden403, notImplemented501, ok200, notFound404)
+import           Network.HTTP.Types (Status, Header, partialContent206, forbidden403, badRequest400, ok200, notFound404)
 import           Network.HTTP.Types.Header (hConnection, hContentLength, hContentType)
-import           Network.Wai (Application, Request, Response, responseSourceBracket, requestBody, requestHeaders, responseLBS)
+import           Network.Wai (Application, Request, Response, responseSourceBracket, requestBody, requestHeaderRange, responseLBS)
 import           Filesystem.Path (FilePath, (</>))
 import           Filesystem.Path.CurrentOS (encodeString, fromText)
 import qualified Filesystem as FS
@@ -76,18 +75,21 @@ serveStaticFile :: Request -> ByteString -> FilePath -> IO Response
 serveStaticFile req mimeType fp = do
   logMessage $ printf "Serving file '%s'..." $ sfp
   -- Do we have a range header?
-  let ranges = case lookup rangeHeader $ requestHeaders req of
-        Just value -> parseRangeHeader $ B8.unpack value
-        Nothing    -> [(Nothing, Nothing)] -- whole file
-  -- Serve the ranges.
-  fsz <- FS.getSize fp
-  response <- serveFile fsz ranges
-  return $ response
+  case requestHeaderRange req of
+    Just value ->
+        case parseRangeHeader value of
+          Just (l, h) -> serve (Just l, h)
+          Nothing -> sendError badRequest400
+    Nothing ->
+        serve (Nothing, Nothing)
   where
-    sfp :: String
+    serve range = do
+      fsz <- FS.getSize fp
+      serveFile fsz range
+
     sfp = encodeString fp
 
-    serveFile fsz [(l,h)] = do
+    serveFile fsz (l,h) = do
       let l' = maybe 0 id l
       let h' = maybe (fsz-1) id h
       let n = (h' - l' + 1)
@@ -101,10 +103,6 @@ serveStaticFile req mimeType fp = do
          (IO.openFile sfp IO.ReadMode)
          (IO.hClose)
          (\hnd -> return (partialContent206, hdrs, src hnd))
-
-    serveFile _ _ = do
-      -- This requires multipart/byteranges, but we don't support that as of yet.
-      sendError notImplemented501
 
 -- Handler for the root description.
 rootDescriptionHandler :: State -> IO Response
@@ -199,10 +197,6 @@ hdrContentRange l h s = (CI.mk "content-range", B8.pack $ printf "%d-%d/%d" l h 
 
 hdrContentLength :: (Show a, Integral a) => a -> Header
 hdrContentLength l = (hContentLength, encodeUtf8 $ T.pack $ show l)
-
--- Name of the range header.
-rangeHeader :: CI ByteString
-rangeHeader = CI.mk "range"
 
 -- XML content type
 xmlContentType :: Header

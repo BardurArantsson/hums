@@ -19,45 +19,29 @@
 module HttpExtra ( parseRangeHeader
                  ) where
 
-import Text.ParserCombinators.Parsec
+import           Data.ByteString.Char8 (isPrefixOf, ByteString)
+import qualified Data.ByteString.Char8 as B8
 
-parseRange :: GenParser Char a (Maybe Integer, Maybe Integer)
-parseRange =
-    choice [parseFullRange,
-            parseEndRange,
-            parseSingleByteRange]
+-- Strip a prefix of a byte string and return the suffix (if the
+-- prefix was actually a prefix).
+parseLiteral :: ByteString -> ByteString -> Maybe ByteString
+parseLiteral p s =
+    case p `isPrefixOf` s of
+      False -> Nothing
+      True -> Just $ B8.drop (B8.length p) s
 
-parseFullRange :: GenParser Char a (Maybe Integer, Maybe Integer)
-parseFullRange = do
-  i1 <- parseInteger
-  _  <- char '-'
-  i2 <- optionMaybe parseInteger
-  return (Just i1, i2)
-
-parseEndRange :: GenParser Char a (Maybe Integer, Maybe Integer)
-parseEndRange = do
-  _  <- char '-'
-  i1 <- parseInteger
-  return (Just $ -i1, Nothing)
-
-parseSingleByteRange :: GenParser Char a (Maybe Integer, Maybe Integer)
-parseSingleByteRange = do
-  i1 <- parseInteger
-  _  <- char '-'
-  return (Just i1, Just i1)
-
-parseInteger :: GenParser Char a Integer
-parseInteger = do
-  ds <- many1 digit
-  return (read ds :: Integer)
-
-parseRanges :: GenParser Char a [(Maybe Integer, Maybe Integer)]
-parseRanges = do
-  _ <- string "bytes="
-  parseRange `sepBy` char ','
-
-parseRangeHeader :: String -> [(Maybe Integer, Maybe Integer)]
-parseRangeHeader s =
-    case parse parseRanges "-" s of
-      Left err -> []     -- Ignore if we can't parse
-      Right rs -> rs
+-- Parse the Range header sent by the PS/3. The Range header that the
+-- PS/3 send is always in a very simple format, so we shortcut this to
+-- avoid the complexity of full HTTP/1.1 range headers.
+parseRangeHeader :: ByteString -> Maybe (Integer, Maybe Integer)
+parseRangeHeader s = do
+  -- Extract the first part of the range
+  s' <- parseLiteral "bytes=" s
+  (startI, s'') <- B8.readInteger s'
+  s''' <- parseLiteral "-" s''
+  -- The second part of the range is optional.
+  if B8.length s''' == 0 then
+      return $ (startI, Nothing)
+  else do
+    (endI, _) <- B8.readInteger s'''
+    return (startI, Just endI)

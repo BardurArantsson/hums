@@ -33,7 +33,6 @@ Executable hums
                , MissingH >= 1.0.1
                , mtl >= 2.1
                , network >= 2.4.1 && < 2.5
-               , parsec >= 3.0 && < 3.2
                , system-uuid >= 2.1 && < 2.2
                , system-filepath >= 0.4.7 && < 0.5
                , system-fileio >= 0.3.10 && < 0.4
