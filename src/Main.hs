@@ -16,6 +16,8 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 -}
 
+module Main (main) where
+
 import           Control.Concurrent
 import           Control.Monad.Error
 import           Data.ConfigFile
