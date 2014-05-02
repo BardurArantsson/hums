@@ -106,7 +106,7 @@ serveStaticFile req mimeType fp = do
 
 -- Handler for the root description.
 rootDescriptionHandler :: State -> IO Response
-rootDescriptionHandler (c,mc,ai,s,_) = do
+rootDescriptionHandler (c,mc,_,s,_) = do
   logMessage "Got request for root description."
   let xml = generateDescriptionXml c mc s
   return $ responseLBS ok200 [ hdrConnectionClose
@@ -129,7 +129,7 @@ staticHandler req root path = do
 
 -- Handle requests for content.
 contentHandler :: Request -> State -> Text -> IO Response
-contentHandler req (c,mc,ai,s,objects_) oid = do
+contentHandler req (_,_,_,_,objects_) oid = do
   objects <- readIORef objects_     -- Current snapshot of object tree.
   logMessage $ printf "Got request for CONTENT for objectId=%s" (T.unpack oid)
   -- Serve the file which the object maps to.
@@ -145,7 +145,7 @@ contentHandler req (c,mc,ai,s,objects_) oid = do
 
 -- Handle requests for device CONTROL urls.
 serviceControlHandler :: State -> DeviceType -> Application
-serviceControlHandler (c,mc,ai,s,objects_) deviceType req = do
+serviceControlHandler (c,_,_,_,objects_) deviceType req = do
   objects <- readIORef objects_      -- Current snapshot of object tree.
   logMessage $ printf "Got request for CONTROL for service '%s'" $ deviceTypeToString deviceType
   -- Parse the SOAP request
@@ -157,7 +157,7 @@ serviceControlHandler (c,mc,ai,s,objects_) deviceType req = do
   case action of
     Just (ContentDirectoryAction_ cda) ->
       sendXml $ generateActionResponseXml c deviceType objects cda
-    Just (ConnectionManagerAction_ cma) ->
+    Just (ConnectionManagerAction_ _) ->
       -- TODO: This should really be implemented as it is required by
       -- the specification. However, the PS3 doesn't seem to use it at
       -- all so I don't have any way to test an implementation anyway.
