@@ -42,7 +42,6 @@ Executable hums
                , wai >= 3.0.0.2 && < 4
                , warp >= 3.0 && < 4
   Default-Extensions:  Arrows
-                       GeneralizedNewtypeDeriving
                        OverloadedStrings
                        ScopedTypeVariables
   Ghc-Options:         -Wall -fno-warn-unused-matches -threaded
