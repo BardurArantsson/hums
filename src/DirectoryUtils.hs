@@ -19,7 +19,7 @@
 module DirectoryUtils ( walkTree
                       ) where
 
-import           Control.Exception (catch, SomeException)
+import           Control.Exception (catch)
 import           Control.Monad
 import           Data.List
 import qualified Data.Text as T
@@ -47,7 +47,7 @@ walkTree s0 f d = do
   -- we just pretend there are none.
   allNames <- catch
               (listDirectory d)
-              (\(e :: SomeException) -> do
+              (\(e :: IOError) -> do
                   putStrLn $ "Error retrieving directory contents: " ++ show e -- Log errors
                   return [])
   -- Sort
