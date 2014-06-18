@@ -25,14 +25,12 @@ module Handlers ( rootDescriptionHandler
                 ) where
 
 import           Blaze.ByteString.Builder (fromByteString)
+import           Control.Exception (bracket)
 import           Data.ByteString (ByteString)
-import qualified Data.ByteString as S
+import qualified Data.ByteString as B
 import qualified Data.ByteString.Char8 as B8
 import qualified Data.ByteString.Lazy as L
 import qualified Data.CaseInsensitive as CI
-import           Data.Conduit (Flush(..), ($$), mapOutput)
-import qualified Data.Conduit.List as CL
-import           Data.Conduit.Binary (sourceHandleRange)
 import           Data.IORef (IORef, readIORef)
 import           Data.List (foldl')
 import           Data.Text (Text)
@@ -40,7 +38,7 @@ import qualified Data.Text as T
 import           Data.Text.Encoding (encodeUtf8, decodeUtf8)
 import           Network.HTTP.Types (Status, Header, partialContent206, forbidden403, badRequest400, ok200, notFound404)
 import           Network.HTTP.Types.Header (hConnection, hContentLength, hContentType)
-import           Network.Wai (Application, Request, Response, responseSourceBracket, requestBody, requestHeaderRange, responseLBS)
+import           Network.Wai (Application, Request, Response, responseStream, requestBody, requestHeaderRange, responseLBS)
 import           Filesystem.Path (FilePath, (</>))
 import           Filesystem.Path.CurrentOS (encodeString, fromText)
 import qualified Filesystem as FS
@@ -85,7 +83,7 @@ serveStaticFile req mimeType fp = do
   where
     serve range = do
       fsz <- FS.getSize fp
-      serveFile fsz range
+      return $ serveFile fsz range
 
     sfp = encodeString fp
 
@@ -98,11 +96,23 @@ serveStaticFile req mimeType fp = do
                  , hdrContentRange l' h' fsz
                  , hdrAcceptRangesBytes
                  , hdrConnectionClose ]
-      let src hnd = mapOutput (Chunk . fromByteString) $ sourceHandleRange hnd (Just l') (Just n)
-      responseSourceBracket
-         (IO.openFile sfp IO.ReadMode)
-         (IO.hClose)
-         (\hnd -> return (partialContent206, hdrs, src hnd))
+      responseStream partialContent206 hdrs $ \write _ ->
+          bracket
+            (IO.openFile sfp IO.ReadMode)
+            IO.hClose
+            (\hnd -> do
+               IO.hSeek hnd IO.AbsoluteSeek l'
+               streamBody hnd write $ fromIntegral n)
+
+    bufSize = 32768
+
+    streamBody hnd write = go
+      where
+        go 0 = return ()
+        go n = B.hGet hnd (min bufSize n) >>= \s ->
+                  case B.length s of
+                    0  -> return ()
+                    n' -> write (fromByteString s) >> go (n - n')
 
 -- Handler for the root description.
 rootDescriptionHandler :: State -> IO Response
@@ -145,25 +155,25 @@ contentHandler req (_,_,_,_,objects_) oid = do
 
 -- Handle requests for device CONTROL urls.
 serviceControlHandler :: State -> DeviceType -> Application
-serviceControlHandler (c,_,_,_,objects_) deviceType req = do
+serviceControlHandler (c,_,_,_,objects_) deviceType req respond = do
   objects <- readIORef objects_      -- Current snapshot of object tree.
   logMessage $ printf "Got request for CONTROL for service '%s'" $ deviceTypeToString deviceType
   -- Parse the SOAP request
-  requestXml <- fmap S.concat $ requestBody req $$ CL.consume
+  requestXml <- requestBody req
   logMessage $ "Request: " ++ (show requestXml)
   action <- parseControlSoapXml $ T.unpack $ decodeUtf8 requestXml
   logMessage $ "Action: " ++ (show action)
   -- Deal with the action
   case action of
     Just (ContentDirectoryAction_ cda) ->
-      sendXml $ generateActionResponseXml c deviceType objects cda
+      sendXml (generateActionResponseXml c deviceType objects cda) >>= respond
     Just (ConnectionManagerAction_ _) ->
       -- TODO: This should really be implemented as it is required by
       -- the specification. However, the PS3 doesn't seem to use it at
       -- all so I don't have any way to test an implementation anyway.
-      sendError notFound404
+      sendError notFound404 >>= respond
     Nothing ->
-      sendError notFound404
+      sendError notFound404 >>= respond
 
 -- Last resort handler.
 fallbackHandler :: IO Response

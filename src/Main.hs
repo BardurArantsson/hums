@@ -70,20 +70,20 @@ scanOnce directory = do
     return objects
 
 application :: State -> FilePath -> Application
-application state dataDirectory request = do
+application state dataDirectory request respond = do
   case pathInfo request of
     ["description.xml"] ->
-      rootDescriptionHandler state
+      rootDescriptionHandler state >>= respond
     ("static" : path) ->
-      staticHandler request (dataDirectory </> staticDir) path
+      staticHandler request (dataDirectory </> staticDir) path >>= respond
     ("dynamic" : "services" : "ContentDirectory" : "control" : _) ->
-      serviceControlHandler state ContentDirectoryDevice request
+      serviceControlHandler state ContentDirectoryDevice request respond
     ("dynamic" : "services" : "ConnectionManager" : "control" : _) ->
-      serviceControlHandler state ConnectionManagerDevice request
+      serviceControlHandler state ConnectionManagerDevice request respond
     ["content" , objectId ] ->
-      contentHandler request state objectId
+      contentHandler request state objectId >>= respond
     _ ->
-      fallbackHandler
+      fallbackHandler >>= respond
   where
     staticDir = decodeString "www"
 
